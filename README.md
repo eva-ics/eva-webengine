@@ -10,7 +10,7 @@ high-level frameworks, such as React and Vue.
 Note: EVA ICS Web Engine is currently in alpha stage. Use in production only if
 you know what you are doing.
 
-## A quick example for vanilla (TypeScript)
+## A quick vanilla JS example (TypeScript)
 
 ```shell
 npm install --save @eva-ics/webengine
