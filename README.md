@@ -58,7 +58,7 @@ definitions)
 * The primary class has been renamed from "EVA" to "Eva"
 
 * the default "Eva"-class object can be registered in web browsers with
-manually calling "register\_legacy\_globals()" method of the main class.
+manually calling "register\_legacy\_globals()" method of the main class
 
 * Web socket mode is now turned on by default
 
@@ -68,7 +68,7 @@ manually calling "register\_legacy\_globals()" method of the main class.
 
 * Eva.debug turns debug logs however to see messages in the JS console, its
 log level must be additionally set to "Verbose". Despite of that, it is not
-recommended to enable debug mode in production as it causes CPU load.
+recommended to enable debug mode in production as it causes CPU load
 
 * "fetch" is no longer bundled as it is present in the majority of
 environments. For older environments consider manually importing a polyfill
