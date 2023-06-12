@@ -20,7 +20,11 @@ npm install --save @eva-ics/webengine
 import { Eva, EventKind } from "@eva-ics/webengine";
 
 const eva = new Eva();
-const log = eva.log;
+
+// optionally register window.$eva for older HMI apps and for testing purposes
+eva.register_legacy_globals();
+
+const log = eva.log; // Get the engine console logger
 
 eva.apikey = "secret";
 // required for development servers only, remove when hosted in EVA ICS HMI
