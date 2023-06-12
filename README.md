@@ -7,6 +7,37 @@ web-HMI applications for EVA ICS.
 Web engine works perfectly both with vanilla JavaScript as well as with
 high-level frameworks, such as React and Vue.
 
+## A quick example for vanilla JS
+
+```shell
+npm install --save @eva-ics/webengine
+```
+
+```typescript
+import { Eva, EventKind } from "@eva-ics/webengine";
+
+const eva = new Eva();
+const log = eva.log;
+
+eva.apikey = "secret";
+// required for development servers only, remove when hosted in EVA ICS HMI
+eva.api_uri = "http://localhost:7727";
+
+eva.watch("sensor:tests/temperature", (state) => {
+  document.getElementById("temperature")!.innerHTML = state.value;
+  });
+
+eva.on(EventKind.LoginSuccess, () => {
+  log.info("logged into", eva.system_name());
+});
+
+eva.on(EventKind.LoginFailed, (err: EvaError) => {
+  log.error("login failed", err);
+});
+
+eva.start();
+```
+
 ## Migration from EVA ICS JS Framework
 
 EVA ICS WebEngine is fully compatible with EVA ICS JS Framework except the
