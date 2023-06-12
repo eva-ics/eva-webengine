@@ -17,7 +17,7 @@ npm install --save @eva-ics/webengine
 ```
 
 ```typescript
-import { Eva, EventKind } from "@eva-ics/webengine";
+import { Eva, EventKind, EvaError } from "@eva-ics/webengine";
 
 const eva = new Eva();
 
