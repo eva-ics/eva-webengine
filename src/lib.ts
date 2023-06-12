@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.2";
+const eva_webengine_version = "0.5.3";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -15,6 +15,12 @@ enum EventKind {
   ServerRestart = "server.restart",
   LogRecord = "log.record",
   LogPostProcess = "log.postprocess"
+}
+
+enum StateProp {
+  Status = "status",
+  Value = "value",
+  Any = ""
 }
 
 interface OTPParams {
@@ -1983,5 +1989,6 @@ export {
   LogParams,
   LogRecord,
   OTPParams,
-  HiQRParams
+  HiQRParams,
+  StateProp
 };
