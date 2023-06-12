@@ -7,6 +7,9 @@ web-HMI applications for EVA ICS.
 Web engine works perfectly both with vanilla JavaScript as well as with
 high-level frameworks, such as React and Vue.
 
+Note: EVA ICS Web Engine is currently in alpha stage. Use in production only if
+you know what you are doing.
+
 ## A quick example for vanilla JS
 
 ```shell
