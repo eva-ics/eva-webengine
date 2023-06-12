@@ -1,6 +1,6 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "EVA ICS HMI Web Engine",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,9 @@
   },
   "main": "./dist/webengine.umd.js",
   "module": "./dist/webengine.es.js",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "types": "./dist/webengine.es.d.ts",
   "exports": {
     ".": {
