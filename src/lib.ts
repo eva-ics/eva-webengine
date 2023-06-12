@@ -681,7 +681,7 @@ class Eva {
    * After calling the function authenticates user, opens a WebSocket (in
    * case of WS mode) or schedule AJAXs refresh interval.
    */
-  async start(): Promise<void> {
+  start() {
     this._cancel_scheduled_restart();
     this._debug("EVA ICS WebEngine", `version: ${this.version}`);
     if (typeof fetch === "undefined") {
