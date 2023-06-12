@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.4";
+const eva_webengine_version = "0.5.5";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -20,7 +20,7 @@ enum EventKind {
 enum StateProp {
   Status = "status",
   Value = "value",
-  Any = ""
+  Any = "any"
 }
 
 interface OTPParams {
