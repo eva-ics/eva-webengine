@@ -890,11 +890,17 @@ class Eva {
    *
    * Calls any available SFA API function
    *
-   * @param arguments item OID (if required), API call params
+   * @param method {string} API method
+   * @param p1 {object} call parameters. if specified as a string/object, transformed to i=val
+   * @param p2 {object} additional call parameters if p1 is a string
    *
    * @returns Promise object
    */
-  async call(method: string, p1?: object | string, p2?: object): Promise<any> {
+  async call(
+    method: string,
+    p1?: object | string | Array<string>,
+    p2?: object
+  ): Promise<any> {
     let params;
     if (typeof p1 === "string" || Array.isArray(p1)) {
       params = (p2 as any) || {};
@@ -985,12 +991,7 @@ class Eva {
    *
    * A single kind of event can have a single handler only
    *
-   * @param event {string} event, possible values:
-   *           login.success, login.failed, ws.event, server.reload,
-   *           server.restart, heartbeat.success, heartbeat.error, log.record,
-   *           log.postprocess, login.otp_required, login.otp_invalid,
-   *           login.otp_setup
-   *
+   * @param event {EventKind} engine event kind
    * @param func {function} function called on event
    */
   on(event: EventKind, func: (...args: any[]) => void) {
@@ -1004,8 +1005,7 @@ class Eva {
   /**
    * Set intervals
    *
-   * @param interval_id {string} interval, possible values:
-   *            ajax_reload, heartbeat, log_reload, reload, restart, action_watch
+   * @param interval_id {IntervalKind} interval kind
    * @param value {number} interval value (in seconds)
    */
   set_interval(interval_id: IntervalKind, value: number) {
@@ -1892,11 +1892,7 @@ class Eva {
    *
    * @param ctx html <canvas /> element or id to generate QR code in
    * @param secret {string} OTP secret
-   * @param params {object} object with additional parameters
-   *        size QR code size in px (default: 200)
-   *        issuer override issuer (default: HMI document.location.hostname)
-   *        user override user (default: $eva.login)
-   *        xtr extra parameters (added as-is)
+   * @param params {OTPParams} additional parameters
    *
    * @returns QRious QR object if QR code is generated
    */
@@ -1933,11 +1929,7 @@ class Eva {
    * code also contain password value. Requires qrious js library.
    *
    * @param ctx html <canvas /> element or id to generate QR code in
-   * @param params {object} object with additional parameters
-   *                        size - QR code size in px (default: 200)
-   *                        url - override UI url (default: document.location)
-   *                        user - override user (default: authorized_user),
-   *                        password - override password, null to clear
+   * @param params {HiQRParams} additional parameters
    *
    * @returns QRious QR object if QR code is generated
    */
