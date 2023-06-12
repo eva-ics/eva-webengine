@@ -1,7 +1,8 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "EVA ICS HMI Web Engine",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc src/*.ts --declaration --lib es2020,dom --emitDeclarationOnly --declarationDir dist/ && mv dist/lib.d.ts dist/webengine.es.d.ts",
@@ -38,7 +39,7 @@
     "url": "https://github.com/eva-ics/eva-webengine/issues"
   },
   "dependencies": {
-    "@altertech/jsaltt": "0.1.11"
+    "@altertech/jsaltt": "0.1.12"
   },
   "homepage": "https://www.eva-ics.com/",
   "devDependencies": {
