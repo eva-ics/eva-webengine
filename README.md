@@ -50,7 +50,8 @@ eva.start();
 EVA ICS WebEngine is fully compatible with EVA ICS JS Framework except the
 following:
 
-* WebEngine is distributed as a TypeScript ES module only
+* WebEngine is distributed as a ES/UMD modules only (with TypeScript
+definitions)
 
 * EVA ICS v3 is no longer supported
 
