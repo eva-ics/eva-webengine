@@ -81,7 +81,6 @@ EvaOBJECT.external.WebSocket
 
 * QRious is no longer bundled by default. If QR codes are required, consider
 manually importing "QRious" module and setting it to EvaOBJECT.external.QRious
-(for web apps is enough to load QRious before the framework)
 
 * EVA ICS HMI WASM extension is already compatible with the new module,
 consider asking your support engineer for upgrade.
