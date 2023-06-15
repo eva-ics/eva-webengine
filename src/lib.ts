@@ -1000,7 +1000,7 @@ class Eva {
    * @param event {EventKind} engine event kind
    * @param func {function} function called on event
    */
-  on(event: EventKind, func: (...args: any[]) => void) {
+  on(event: EventKind, func: (...args: any[]) => void | boolean) {
     this._handlers.set(event, func);
     this._debug("on", `setting handler for ${event}`);
     if (event == EventKind.WsEvent) {
