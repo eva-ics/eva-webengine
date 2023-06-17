@@ -839,9 +839,8 @@ class Eva {
         }
         this._debug("start", `login failed: ${err.code} (${err.message})`);
         this._stop_engine();
-        this.error_handler(err, "login");
         this.erase_token_cookie();
-        this._invoke_handler(EventKind.LoginFailed, err);
+        this.error_handler(err, "login");
       });
     return true;
   }
@@ -1031,9 +1030,6 @@ class Eva {
       })
       .catch((err: EvaError) => {
         this.error_handler(err, "set_normal");
-        if (err.code !== -32022) {
-          this._invoke_handler(EventKind.LoginFailed, err);
-        }
       });
     return true;
   }
@@ -1056,6 +1052,7 @@ class Eva {
         }
       }
     }
+    this._invoke_handler(EventKind.LoginFailed, err);
   }
 
   /**
