@@ -2,6 +2,45 @@ const eva_webengine_version = "0.5.6";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
+enum EvaErrorKind {
+  NOT_FOUND = -32001,
+  ACCESS_DENIED = -32002,
+  SYSTEM_ERROR = -32003,
+  OTHER = -32004,
+  NOT_READY = -32005,
+  UNSUPPORTED = -32006,
+  CORE_ERROR = -32007,
+  TIMEOUT = -32008,
+  INVALID_DATA = -32009,
+  FUNC_FAILED = -32010,
+  ABORTED = -32011,
+  ALREADY_EXISTS = -32012,
+  BUSY = -32013,
+  METHOD_NOT_IMPLEMENTED = -32014,
+  TOKEN_RESTRICTED = -32015,
+  IO = -32016,
+  REGISTRY = -32017,
+  EVAHI_AUTH_REQUIRED = -32018,
+
+  ACCESS_DENIED_MORE_DATA_REQUIRED = -32022,
+
+  PARSE = -32700,
+  INVALID_REQUEST = -32600,
+  METHOD_NOT_FOUND = -32601,
+  INVALID_PARAMS = -32602,
+  INTERNAL_RPC = -32603,
+
+  BUS_CLIENT_NOT_REGISTERED = -32113,
+  BUS_DATA = -32114,
+  BUS_IO = -32115,
+  BUS_OTHER = -32116,
+  BUS_NOT_SUPPORTED = -32117,
+  BUS_BUSY = -32118,
+  BUS_NOT_DELIVERED = -32119,
+  BUS_TIMEOUT = -32120,
+  BUS_ACCESS = -32121
+}
+
 enum EventKind {
   HeartBeatSuccess = "heartbeat.success",
   HeartBeatError = "heartbeat.error",
@@ -2011,6 +2050,7 @@ class Eva {
 export {
   Eva,
   EvaError,
+  EvaErrorKind,
   EventKind,
   IntervalKind,
   ActionResult,
