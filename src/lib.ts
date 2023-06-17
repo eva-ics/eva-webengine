@@ -2059,5 +2059,6 @@ export {
   LogRecord,
   OTPParams,
   HiQRParams,
-  StateProp
+  StateProp,
+  SvcMessage
 };
