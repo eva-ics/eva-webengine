@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.5";
+const eva_webengine_version = "0.5.6";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
