@@ -852,6 +852,32 @@ class Eva {
   }
 
   /**
+   * Set state updates
+   *
+   * @param state_updates {boolean} true/false or a string array
+   */
+  async set_state_updates(state_updates: Array<string> | boolean) {
+    this.state_updates = state_updates;
+    if (this.ws) {
+      let st: WsCommand = { m: "unsubscribe.state" };
+      await this.ws.send(JSON.stringify(st));
+      await this.ws.send("");
+      if (this.state_updates) {
+        let st: WsCommand = { m: "subscribe.state_initial" };
+        let masks;
+        if (this.state_updates == true) {
+          masks = ["#"];
+        } else {
+          masks = this.state_updates;
+        }
+        st.p = masks;
+        await this.ws.send(JSON.stringify(st));
+        await this.ws.send("");
+      }
+    }
+  }
+
+  /**
    * Change log processing level
    *
    * @param log_level {number} log processing level
@@ -1687,7 +1713,7 @@ class Eva {
           this._debug("_start_ws", "ws connected");
           if (this.state_updates) {
             let st: WsCommand = { m: "subscribe.state" };
-            var masks;
+            let masks;
             if (this.state_updates == true) {
               masks = ["#"];
             } else {
@@ -1734,7 +1760,7 @@ class Eva {
 
   // WASM override
   _process_ws(payload: string) {
-    var data = JSON.parse(payload);
+    let data = JSON.parse(payload);
     if (data.s == "pong") {
       this._debug("ws", "pong");
       this._process_ws_frame_pong();
