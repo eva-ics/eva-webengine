@@ -546,7 +546,6 @@ class Eva {
   version: string;
   wasm: boolean;
   ws_mode: boolean;
-  ws_send_initial: boolean;
   ws: any;
   server_info: any;
   _api_call_id: number;
@@ -591,7 +590,6 @@ class Eva {
     this.clear_unavailable = false;
     this._ws_handler_registered = false;
     this.ws_mode = true;
-    this.ws_send_initial = false;
     this.ws = null;
     //this.api_version = null;
     this._api_call_id = 0;
@@ -865,7 +863,7 @@ class Eva {
       await this.ws.send(JSON.stringify(st));
       await this.ws.send("");
       if (this.state_updates) {
-        let st: WsCommand = { m: "subscribe.state_initial" };
+        let st: WsCommand = { m: "subscribe.state" };
         let masks;
         if (this.state_updates == true) {
           masks = ["#"];
@@ -877,6 +875,7 @@ class Eva {
         await this.ws.send("");
       }
     }
+    await this._load_states();
   }
 
   /**
@@ -1715,9 +1714,7 @@ class Eva {
           this._debug("_start_ws", "ws connected");
           if (this.state_updates) {
             let st: WsCommand = {
-              m: this.ws_send_initial
-                ? "subscribe.state_initial"
-                : "subscribe.state"
+              m: "subscribe.state"
             };
             let masks;
             if (this.state_updates == true) {
