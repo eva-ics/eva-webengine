@@ -546,6 +546,7 @@ class Eva {
   version: string;
   wasm: boolean;
   ws_mode: boolean;
+  ws_send_initial: boolean;
   ws: any;
   server_info: any;
   _api_call_id: number;
@@ -590,6 +591,7 @@ class Eva {
     this.clear_unavailable = false;
     this._ws_handler_registered = false;
     this.ws_mode = true;
+    this.ws_send_initial = false;
     this.ws = null;
     //this.api_version = null;
     this._api_call_id = 0;
@@ -858,7 +860,7 @@ class Eva {
    */
   async set_state_updates(state_updates: Array<string> | boolean) {
     this.state_updates = state_updates;
-    if (this.ws) {
+    if (this.ws && this.ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
       await this.ws.send(JSON.stringify(st));
       await this.ws.send("");
@@ -1509,7 +1511,7 @@ class Eva {
             this._invoke_handler(EventKind.HeartBeatError);
           }
         }
-        if (!on_login && this.ws) {
+        if (!on_login && this.ws && this.ws.readyState == 1) {
           this._last_ping = Date.now() / 1000;
           try {
             this._debug("heartbeat", "ws ping");
@@ -1712,7 +1714,11 @@ class Eva {
         this.ws.addEventListener("open", () => {
           this._debug("_start_ws", "ws connected");
           if (this.state_updates) {
-            let st: WsCommand = { m: "subscribe.state" };
+            let st: WsCommand = {
+              m: this.ws_send_initial
+                ? "subscribe.state_initial"
+                : "subscribe.state"
+            };
             let masks;
             if (this.state_updates == true) {
               masks = ["#"];
