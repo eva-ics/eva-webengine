@@ -1341,6 +1341,8 @@ class Eva {
           .catch(function (err) {
             reject(err);
           });
+      } else {
+        resolve();
       }
     });
   }
