@@ -315,27 +315,27 @@ class EvaBulkRequest {
                   });
                   resolve(true);
                 } else {
-                  let code = -32009;
+                  let code = EvaErrorKind.INVALID_DATA;
                   let message = "Invalid server response (not an array)";
                   this.eva._debug("call_bulk", `failed: ${code} (${message})`);
                   reject(new EvaError(code, message, data));
                 }
               })
               .catch((err: any) => {
-                let code = -32009;
+                let code = EvaErrorKind.INVALID_DATA;
                 let message = "Invalid server response";
                 this.eva._debug("call_bulk", `failed: ${code} (${message})`);
                 reject(new EvaError(code, message, err));
               });
           } else {
-            let code = -32007;
+            let code = EvaErrorKind.CORE_ERROR;
             let message = "Server error";
             this.eva._debug("call_bulk", `failed: ${code} (${message})`);
             reject(new EvaError(code, message));
           }
         })
         .catch((err: any) => {
-          let code = -32007;
+          let code = EvaErrorKind.CORE_ERROR;
           let message = "Server error";
           this.eva._debug("call_bulk", `failed: ${code} (${message})`);
           reject(new EvaError(code, message, err));
@@ -834,7 +834,7 @@ class Eva {
         this._debug("start", err);
         this.logged_in = false;
         if (err.code === undefined) {
-          err.code = 4;
+          err.code = EvaErrorKind.OTHER;
           err.message = "Unknown error";
         }
         this._debug("start", `login failed: ${err.code} (${err.message})`);
@@ -1039,7 +1039,7 @@ class Eva {
   }
 
   error_handler(err: EvaError, method: string) {
-    if (err.code == -32022) {
+    if (err.code == EvaErrorKind.ACCESS_DENIED_MORE_DATA_REQUIRED) {
       let msg = this.parse_svc_message(err.message) as any;
       msg.method = method;
       if (msg && msg.kind == "OTP") {
@@ -1511,7 +1511,7 @@ class Eva {
                 }
               })
               .catch((err: any) => {
-                let code = -32009;
+                let code = EvaErrorKind.INVALID_DATA;
                 let message = "Invalid server response";
                 this._debug(
                   method,
@@ -1520,14 +1520,14 @@ class Eva {
                 reject(new EvaError(code, message, err));
               });
           } else {
-            let code = -32007;
+            let code = EvaErrorKind.CORE_ERROR;
             let message = "Server error";
             this._debug(method, `api call ${id} failed: ${code} (${message})`);
             reject(new EvaError(code, message));
           }
         })
         .catch((err: any) => {
-          let code = -32007;
+          let code = EvaErrorKind.CORE_ERROR;
           let message = "Server error";
           this._debug(method, `api call ${id} failed: ${code} (${message})`);
           reject(new EvaError(code, message, err));
