@@ -1575,7 +1575,7 @@ class Eva {
           try {
             this.ws.close();
           } catch (err) {}
-        }, 1000);
+        }, 100);
       }
     }
   }
