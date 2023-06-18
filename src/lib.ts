@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.6";
+const eva_webengine_version = "0.5.7";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -351,25 +351,25 @@ class Eva_ACTION {
     this.eva = eva;
   }
   /**
-   * Call unit action with status=1
+   * Call unit action with value=1
    *
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
    */
   async start(oid: string, wait = false): Promise<ActionResult> {
-    return this.exec(oid, { s: 1 }, wait);
+    return this.exec(oid, { v: 1 }, wait);
   }
   /**
-   * Call unit action with status=0
+   * Call unit action with value=0
    *
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
    */
   async stop(oid: string, wait = false): Promise<ActionResult> {
-    return this.exec(oid, { s: 0 }, wait);
+    return this.exec(oid, { v: 0 }, wait);
   }
   /**
-   * Call unit action to toggle its status
+   * Call unit action to toggle its value
    *
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
