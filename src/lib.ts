@@ -2037,6 +2037,9 @@ class Eva {
       size: size
     });
   }
+  /**
+   * Registers the legacy global object window.$eva
+   */
   register_legacy_globals() {
     if (typeof window !== "undefined") {
       (window as any).$eva = this;
