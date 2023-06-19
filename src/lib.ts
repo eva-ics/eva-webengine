@@ -890,7 +890,7 @@ class Eva {
   }
 
   /**
-   * Set state updates
+   * Set state updates without restart required
    *
    * @param state_updates {boolean} true/false or a string array
    */
