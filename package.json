@@ -39,7 +39,7 @@
     "url": "https://github.com/eva-ics/eva-webengine/issues"
   },
   "dependencies": {
-    "@altertech/jsaltt": "0.1.12"
+    "@altertech/jsaltt": "0.1.13"
   },
   "homepage": "https://www.eva-ics.com/",
   "devDependencies": {

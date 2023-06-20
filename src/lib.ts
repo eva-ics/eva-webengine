@@ -62,6 +62,24 @@ enum StateProp {
   Any = "any"
 }
 
+interface EvaConfig {
+  engine?: EvaEngineConfig;
+}
+
+interface EvaEngineConfig {
+  api_uri?: string;
+  apikey?: string;
+  debug?: boolean | number;
+  login?: string;
+  password?: string;
+  set_auth_cookies?: boolean;
+  state_updates?: boolean | Array<string>;
+  wasm?: boolean | string;
+  ws_mode?: boolean;
+  log_params?: LogParams;
+  interval: { [key in IntervalKind]: number };
+}
+
 interface OTPParams {
   size?: number;
   issuer?: string;
@@ -583,7 +601,7 @@ class Eva {
   state_updates: boolean | Array<string>;
   tsdiff: number;
   version: string;
-  wasm: boolean;
+  wasm: boolean | string;
   ws_mode: boolean;
   ws: any;
   server_info: any;
@@ -954,6 +972,48 @@ class Eva {
     this.api_token = "";
     this.authorized_user = null;
     this._set_token_cookie();
+  }
+
+  /**
+   * Load JSON configuration
+   *
+   * @param config_path {string} config path (default: config.json)
+   *
+   * @returns Promise object
+   */
+  load_config(config_path?: string): Promise<EvaConfig> {
+    return new Promise((resolve, reject) => {
+      const cpath = config_path || "config.json";
+      this.log.debug("Eva::load_config", `loading configuration from ${cpath}`);
+      this.external
+        .fetch(cpath)
+        .then((res: any) => res.json())
+        .then((config: EvaConfig) => {
+          const ec = config.engine;
+          if (ec) {
+            if (ec.api_uri) this.api_uri = ec.api_uri;
+            if (ec.apikey) this.apikey = ec.apikey;
+            if (ec.debug !== undefined) this.debug = ec.debug;
+            if (ec.login) this.login = ec.login;
+            if (ec.password) this.password = ec.password;
+            if (ec.set_auth_cookies !== undefined)
+              this.set_auth_cookies = ec.set_auth_cookies;
+            if (ec.state_updates !== undefined)
+              this.state_updates = ec.state_updates;
+            if (ec.wasm !== undefined) this.wasm = ec.wasm;
+            if (ec.ws_mode !== undefined) this.ws_mode = ec.ws_mode;
+            if (ec.log_params) this.log_params = ec.log_params;
+            if (ec.interval) {
+              Object.keys(ec.interval).forEach((k) => {
+                const key = k as IntervalKind;
+                this.set_interval(key, ec.interval[key]);
+              });
+            }
+          }
+          resolve(config);
+        })
+        .catch((err: any) => reject(err));
+    });
   }
 
   /**
@@ -1404,8 +1464,9 @@ class Eva {
 
   _start_evajw() {
     this.evajw = undefined;
+    const js_path = this.wasm === true ? "./evajw/evajw.js" : this.wasm;
     eval(
-      `import("./evajw/evajw.js?" + new Date().getTime()).catch((e)=>{this._critical("evajs WASM module not found",1,0);this._critical(e)}).then((m)=>{this._inject_evajw(m)})`
+      `import("${js_path}?" + new Date().getTime()).catch((e)=>{this._critical("WASM module not found",1,0);this._critical(e)}).then((m)=>{this._inject_evajw(m)})`
     );
   }
 
@@ -2062,5 +2123,7 @@ export {
   OTPParams,
   HiQRParams,
   StateProp,
-  SvcMessage
+  SvcMessage,
+  EvaConfig,
+  EvaEngineConfig
 };
