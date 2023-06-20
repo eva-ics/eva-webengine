@@ -442,10 +442,14 @@ class Eva_ACTION {
     if (wait === false) {
       return data;
     } else {
-      return new Promise((resolve) => {
-        this.eva.watch_action(data.uuid, (action: ActionResult | EvaError) => {
-          if ((action as ActionResult).finished) {
-            resolve(action as ActionResult);
+      return new Promise((resolve, reject) => {
+        this.eva.watch_action(data.uuid, (res: ActionResult | EvaError) => {
+          if ((res as ActionResult).uuid !== undefined) {
+            if ((res as ActionResult).finished) {
+              resolve(res as ActionResult);
+            }
+          } else {
+            reject(res);
           }
         });
       });
