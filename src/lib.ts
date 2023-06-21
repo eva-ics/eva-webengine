@@ -157,6 +157,8 @@ interface ActionResult {
   svc: string;
   time: any;
   uuid: string;
+  out: null | string;
+  err: null | string;
 }
 
 interface StatePayload {
