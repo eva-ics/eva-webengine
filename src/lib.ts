@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.13";
+const eva_webengine_version = "0.5.14";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -434,28 +434,34 @@ class Eva_ACTION {
   async run(oid: string, params?: object, wait = false): Promise<ActionResult> {
     return this._act("run", oid, params, wait);
   }
-  async _act(
+  _act(
     method: string,
     oid: string,
     params?: object,
     wait = false
   ): Promise<ActionResult> {
-    let data = (await this.eva.call(method, oid, params)) as ActionResult;
-    if (wait === false) {
-      return data;
-    } else {
-      return new Promise((resolve, reject) => {
-        this.eva.watch_action(data.uuid, (res: ActionResult | EvaError) => {
-          if ((res as ActionResult).uuid !== undefined) {
-            if ((res as ActionResult).finished) {
-              resolve(res as ActionResult);
-            }
+    return new Promise((resolve, reject) => {
+      this.eva
+        .call(method, oid, params)
+        .then((data: ActionResult) => {
+          if (wait === false) {
+            resolve(data);
           } else {
-            reject(res);
+            this.eva.watch_action(data.uuid, (res: ActionResult | EvaError) => {
+              if ((res as ActionResult).uuid !== undefined) {
+                if ((res as ActionResult).finished) {
+                  resolve(res as ActionResult);
+                }
+              } else {
+                reject(res);
+              }
+            });
           }
+        })
+        .catch((err) => {
+          reject(err);
         });
-      });
-    }
+    });
   }
 }
 
