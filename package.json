@@ -1,6 +1,6 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "description": "EVA ICS HMI Web Engine",
   "type": "module",
   "scripts": {
@@ -39,7 +39,7 @@
     "url": "https://github.com/eva-ics/eva-webengine/issues"
   },
   "dependencies": {
-    "@altertech/jsaltt": "0.1.13"
+    "@altertech/jsaltt": "0.1.14"
   },
   "homepage": "https://www.eva-ics.com/",
   "devDependencies": {

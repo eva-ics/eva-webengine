@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.14";
+const eva_webengine_version = "0.5.15";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -1734,7 +1734,7 @@ class Eva {
         this.api_uri + "/rpvt",
         this.api_uri + "/upload"
       ].map(
-        (uri) => (document.cookie = `auth=${this.api_token}; path=${uri}`),
+        (uri) => (document.cookie = `auth=${this.api_token}; Path=${uri}; SameSite=Lax`),
         this
       );
     }
