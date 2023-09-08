@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.16";
+const eva_webengine_version = "0.5.17";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -182,7 +182,7 @@ interface ItemState {
   ieid?: Array<number>;
   meta?: object;
   node?: string;
-  oid: string;
+  oid?: string;
   status: number | null;
   t?: number;
   value: any;
@@ -1734,7 +1734,8 @@ class Eva {
         this.api_uri + "/rpvt",
         this.api_uri + "/upload"
       ].map(
-        (uri) => (document.cookie = `auth=${this.api_token}; Path=${uri}; SameSite=Lax`),
+        (uri) =>
+          (document.cookie = `auth=${this.api_token}; Path=${uri}; SameSite=Lax`),
         this
       );
     }
@@ -1744,7 +1745,11 @@ class Eva {
   _process_loaded_states(data: Array<ItemState>, clear_unavailable: boolean) {
     let received_oids: string[] = [];
     if (clear_unavailable) {
-      data.map((s) => received_oids.push(s.oid));
+      data.map((s) => {
+        if (s.oid !== undefined) {
+          received_oids.push(s.oid);
+        }
+      });
     }
     data.map((s) => this._process_state(s));
     if (clear_unavailable) {
@@ -1934,7 +1939,10 @@ class Eva {
 
   _process_state(state: ItemState, is_update = false) {
     try {
-      let oid = state.oid;
+      if (state.oid === undefined) {
+        return;
+      }
+      let oid: string = state.oid;
       let old_state = this._states.get(oid);
       if (!old_state && is_update) {
         return;
