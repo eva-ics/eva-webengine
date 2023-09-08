@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.15";
+const eva_webengine_version = "0.5.16";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -376,7 +376,7 @@ class Eva_ACTION {
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
    */
-  async start(oid: string, wait = false): Promise<ActionResult> {
+  async start(oid: string, wait = true): Promise<ActionResult> {
     return this.exec(oid, { v: 1 }, wait);
   }
   /**
@@ -385,7 +385,7 @@ class Eva_ACTION {
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
    */
-  async stop(oid: string, wait = false): Promise<ActionResult> {
+  async stop(oid: string, wait = true): Promise<ActionResult> {
     return this.exec(oid, { v: 0 }, wait);
   }
   /**
@@ -394,7 +394,7 @@ class Eva_ACTION {
    * @param oid {string} unit OID
    * @param wait {boolean} wait until the action is completed (default: true)
    */
-  async toggle(oid: string, wait = false): Promise<ActionResult> {
+  async toggle(oid: string, wait = true): Promise<ActionResult> {
     return this._act("action.toggle", oid, {}, wait);
   }
   /**
@@ -404,7 +404,7 @@ class Eva_ACTION {
    * @param params {object} action params
    * @param wait {boolean} wait until the action is completed (default: true)
    */
-  exec(oid: string, params: object, wait = false) {
+  exec(oid: string, params: object, wait = true) {
     return this._act("action", oid, params, wait);
   }
   /**
@@ -431,7 +431,7 @@ class Eva_ACTION {
    * @param params {object} call params
    * @param wait {boolean} wait until completed (default: true)
    */
-  async run(oid: string, params?: object, wait = false): Promise<ActionResult> {
+  async run(oid: string, params?: object, wait = true): Promise<ActionResult> {
     return this._act("run", oid, params, wait);
   }
   _act(
