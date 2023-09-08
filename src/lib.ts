@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.17";
+const eva_webengine_version = "0.5.18";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -183,7 +183,7 @@ interface ItemState {
   meta?: object;
   node?: string;
   oid?: string;
-  status: number | null;
+  status?: number | null;
   t?: number;
   value: any;
 }
