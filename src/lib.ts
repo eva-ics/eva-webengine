@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.18";
+const eva_webengine_version = "0.5.19";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -1378,9 +1378,9 @@ class Eva {
   // WASM override
   _states_by_mask(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
-    Object.keys(this._states).map((k) => {
+    this._states.forEach((v, k) => {
       if (this._oid_match(k, oid_mask)) {
-        result.push(this._states.get(k) as ItemState);
+        result.push(v);
       }
     }, this);
     return result;
