@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.19";
+const eva_webengine_version = "0.5.20";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -923,8 +923,13 @@ class Eva {
    * Set state updates without restart required
    *
    * @param state_updates {boolean} true/false or a string array
+   * @param clear_existing {boolean} clear existing states
+   *
    */
-  async set_state_updates(state_updates: Array<string> | boolean) {
+  async set_state_updates(
+    state_updates: Array<string> | boolean,
+    clear_existing?: boolean
+  ) {
     this.state_updates = state_updates;
     if (this.ws && this.ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
@@ -942,6 +947,9 @@ class Eva {
         await this.ws.send(JSON.stringify(st));
         await this.ws.send("");
       }
+    }
+    if (clear_existing) {
+      this._clear_states();
     }
     await this._load_states();
   }
