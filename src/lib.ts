@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.20";
+const eva_webengine_version = "0.5.21";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -2127,14 +2127,20 @@ class Eva {
     });
   }
   /**
-   * Registers the legacy global object window.$eva
+   * Registers the global object window.$eva
    */
-  register_legacy_globals() {
+  register_globals() {
     if (typeof window !== "undefined") {
       (window as any).$eva = this;
     } else {
       throw new Error("the method can be started in web browsers only");
     }
+  }
+  /**
+   * Registers global objects + legacy globals
+   */
+  register_legacy_globals() {
+    this.register_legacy_globals();
   }
 }
 
