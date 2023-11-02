@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.5.21";
+const eva_webengine_version = "0.5.22";
 
 import { Logger, cookies } from "@altertech/jsaltt";
 
@@ -2140,7 +2140,7 @@ class Eva {
    * Registers global objects + legacy globals
    */
   register_legacy_globals() {
-    this.register_legacy_globals();
+    this.register_globals();
   }
 }
 
