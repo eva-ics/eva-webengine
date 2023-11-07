@@ -1387,7 +1387,7 @@ class Eva {
   _states_by_mask(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
     this._states.forEach((v, k) => {
-      if (this._oid_match(k, oid_mask)) {
+      if (oid_mask == "*" || this._oid_match(k, oid_mask)) {
         result.push(v);
       }
     }, this);
