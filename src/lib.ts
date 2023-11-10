@@ -1,6 +1,7 @@
 const eva_webengine_version = "0.5.23";
 
-import { Logger, cookies } from "@altertech/jsaltt";
+import { Logger } from "bmat/log";
+import { cookies } from "bmat/dom";
 
 enum EvaErrorKind {
   NOT_FOUND = -32001,

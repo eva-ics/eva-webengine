@@ -6,7 +6,7 @@ const lib_name = "webengine";
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ["@altertech/jsaltt"]
+      external: ["bmat/log", "bmat/dom", "bmat"]
     },
     lib: {
       entry: path.resolve(__dirname, "src/lib.ts"),
