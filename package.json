@@ -1,6 +1,6 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "EVA ICS HMI Web Engine",
   "type": "module",
   "scripts": {
@@ -39,7 +39,7 @@
     "url": "https://github.com/eva-ics/eva-webengine/issues"
   },
   "peerDependencies": {
-    "bmat": "^0.1.3"
+    "bmat": "^0.1.4"
   },
   "homepage": "https://www.eva-ics.com/",
   "devDependencies": {
