@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.6.1";
+const eva_webengine_version = "0.6.2";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1554,6 +1554,9 @@ class Eva {
     const req = this._prepare_api_call(method, params);
     const id = req.id;
     let api_uri = `${this.api_uri}/jrpc`;
+    if (this.debug) {
+      api_uri += `?${method}`;
+    }
     this._debug("_api_call", `${id}: ${api_uri}: ${method}`);
     return new Promise((resolve, reject) => {
       this.external
