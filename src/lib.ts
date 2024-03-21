@@ -1067,7 +1067,7 @@ class Eva {
   /**
    * Ask server to set the token read-only (e.g. after idle)
    *
-   * (Eva ICS 3.3.2+)
+   * (EVA ICS 3.3.2+)
    *
    * the current mode can be obtained from $eva.server_info.aci.token_mode
    */
@@ -1087,7 +1087,7 @@ class Eva {
   /**
    * Ask server to return the token to normal mode
    *
-   * (Eva ICS 3.3.2+)
+   * (EVA ICS 3.3.2+)
    *
    * @param u {string} login
    * @param p {string} password
@@ -1438,7 +1438,7 @@ class Eva {
           (window as any).evajw = this.evajw;
         }
         let build = mod.get_build();
-        this.log.info("Eva ICS JavaScript WASM engine loaded. Build: " + build);
+        this.log.info("EVA ICS JavaScript WASM engine loaded. Build: " + build);
         try {
           mod.check_license();
         } catch (err) {
