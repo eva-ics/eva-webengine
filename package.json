@@ -1,6 +1,6 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "EVA ICS HMI Web Engine",
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "type": "git",
     "url": "git+https://github.com/eva-ics/eva-webengine"
   },
-  "main": "./dist/webengine.umd.js",
+  "main": "./dist/webengine.cjs",
   "module": "./dist/webengine.es.js",
   "files": [
     "dist"
@@ -21,7 +21,7 @@
   "exports": {
     ".": {
       "import": "./dist/webengine.es.js",
-      "require": "./dist/webengine.umd.js"
+      "require": "./dist/webengine.cjs"
     }
   },
   "keywords": [

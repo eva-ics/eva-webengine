@@ -11,7 +11,8 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, "src/lib.ts"),
       name: lib_name,
-      fileName: (format) => `${lib_name}.${format}.js`
+      fileName: (format) =>
+        format === "umd" ? `${lib_name}.cjs` : `${lib_name}.${format}.js`
     }
   }
 });
