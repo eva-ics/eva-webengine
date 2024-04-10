@@ -5,6 +5,7 @@ const lib_name = "webengine";
 
 export default defineConfig({
   build: {
+    sourcemap: true,
     rollupOptions: {
       external: ["bmat/log", "bmat/dom", "bmat"]
     },
