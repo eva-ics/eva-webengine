@@ -226,12 +226,12 @@ class EvaBulkRequestPartHandler {
 }
 
 class EvaBulkRequest {
-  requests: any;
+  requests: Map<number, EvaBulkRequestPartHandler>;
   payload: Array<any>;
   eva: Eva;
 
   constructor(eva: Eva) {
-    this.requests = Map<number, EvaBulkRequestPartHandler>;
+    this.requests = new Map<number, EvaBulkRequestPartHandler>();
     this.payload = [];
     this.eva = eva;
   }
@@ -324,7 +324,7 @@ class EvaBulkRequest {
                       } else {
                         if (this.eva.debug == 2) {
                           this.eva.log.info(
-                            `call_bulk API ${id} ${req.func} response`,
+                            `call_bulk API ${id} ${(req as any).func} response`,
                             d.result
                           );
                         }
