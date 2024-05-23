@@ -793,6 +793,12 @@ class Eva {
     }
   }
 
+  /**
+   * Register a state block
+   *
+   * @param name {string} block name
+   * @param state_updates {boolean | Array<string>} state updates
+   */
   register_state_block(name: string, state_updates: boolean | Array<string>) {
     if (name == GLOBAL_BLOCK_NAME) {
       throw new EvaError(
@@ -815,6 +821,11 @@ class Eva {
     this._init_block(name);
   }
 
+  /**
+   * Unregister a state block
+   *
+   * @param name {string} block name
+   */
   unregister_state_block(name: string) {
     const block = this._blocks.get(name);
     if (block) {
@@ -822,6 +833,17 @@ class Eva {
       this._delete_block(name);
       this._blocks.delete(name);
     }
+  }
+
+  /**
+   * Unregister all state blocks
+   */
+  unregister_all_state_blocks() {
+    for (const [name, block] of this._blocks) {
+      block._stop();
+      this._delete_block(name);
+    }
+    this._blocks.clear();
   }
 
   bulk_request(): EvaBulkRequest {
