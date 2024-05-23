@@ -592,7 +592,7 @@ class Eva_LVAR {
   }
 }
 
-class _EvaBlock {
+class _EvaStateBlock {
   state_updates: boolean | Array<string>;
   eva: Eva;
   name: string;
@@ -678,7 +678,7 @@ class Eva {
   _log_reloader: any;
   _scheduled_restarter: any;
   _states: Map<string | null, Map<string, ItemState>>;
-  _blocks: Map<string, _EvaBlock>;
+  _blocks: Map<string, _EvaStateBlock>;
   _action_states: Map<string, ActionResult>;
   _action_watch_functions: Map<
     String,
@@ -793,21 +793,21 @@ class Eva {
     }
   }
 
-  register_block(name: string, state_updates: boolean | Array<string>) {
+  register_state_block(name: string, state_updates: boolean | Array<string>) {
     if (name == GLOBAL_BLOCK_NAME) {
       throw new EvaError(
         EvaErrorKind.INVALID_PARAMS,
-        `Block name ${GLOBAL_BLOCK_NAME} is reserved`
+        `WebEngine state block name ${GLOBAL_BLOCK_NAME} is reserved`
       );
     }
     const old_block = this._blocks.get(name);
     if (old_block) {
       console.error(
-        `WebEngine block ${name} has been already registered, removing the old instance`
+        `WebEngine state block ${name} has been already registered, removing the old instance`
       );
       old_block._stop();
     }
-    const block = new _EvaBlock(name, state_updates, this);
+    const block = new _EvaStateBlock(name, state_updates, this);
     if (this.logged_in) {
       block._start();
     }
@@ -815,7 +815,7 @@ class Eva {
     this._init_block(name);
   }
 
-  unregister_block(name: string) {
+  unregister_state_block(name: string) {
     const block = this._blocks.get(name);
     if (block) {
       block._stop();
