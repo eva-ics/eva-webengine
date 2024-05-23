@@ -812,7 +812,7 @@ class Eva {
       block._start();
     }
     this._blocks.set(name, block);
-    this._states.set(name, new Map());
+    this._init_block(name);
   }
 
   unregister_block(name: string) {
@@ -1563,6 +1563,7 @@ class Eva {
         this._process_loaded_states = mod.process_loaded_states;
         this._process_ws = mod.process_ws;
         this._clear_state = mod.clear_state;
+        this._init_block = mod.init_block;
         this._delete_block = mod.delete_block;
         // transfer registered watchers to WASM
         function transfer_watchers(
@@ -1586,10 +1587,13 @@ class Eva {
   }
 
   /// WASM override
+  _init_block(block: string) {
+    this._states.set(block, new Map());
+  }
+
+  /// WASM override
   _delete_block(block: string) {
     this._states.delete(block);
-    this._update_state_functions.delete(block);
-    this._update_state_mask_functions.delete(block);
     this._last_ping.delete(block);
     this._last_pong.delete(block);
   }
