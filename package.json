@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc src/*.ts --declaration --lib es2020,dom --emitDeclarationOnly --declarationDir dist/ && mv dist/lib.d.ts dist/webengine.es.d.ts",
+    "build": "vite build && tsc src/*.ts --declaration --lib es2020,dom --downlevelIteration --emitDeclarationOnly --declarationDir dist/ && mv dist/lib.d.ts dist/webengine.es.d.ts",
     "preview": "vite preview"
   },
   "repository": {

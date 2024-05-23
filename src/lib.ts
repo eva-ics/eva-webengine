@@ -63,6 +63,8 @@ enum StateProp {
   Any = "any"
 }
 
+const GLOBAL_BLOCK_NAME = "GLOBAL";
+
 interface EvaConfig {
   engine?: EvaEngineConfig;
 }
@@ -590,6 +592,55 @@ class Eva_LVAR {
   }
 }
 
+class _EvaBlock {
+  state_updates: boolean | Array<string>;
+  eva: Eva;
+  name: string;
+  _ajax_reloader: any;
+  constructor(
+    name: string,
+    state_updates: boolean | Array<string>,
+    engine: Eva
+  ) {
+    this.name = name;
+    this.state_updates = state_updates;
+    this.eva = engine;
+  }
+  _start() {
+    if (this.eva.ws_mode) {
+      this.eva._start_ws(this.state_updates, this.name);
+    }
+    this.eva._load_states(this.state_updates, this.name).then(() => {
+      if (this.eva.ws_mode) {
+        const reload = this.eva._intervals.get(IntervalKind.Reload) as number;
+        if (reload) {
+          this._ajax_reloader = setInterval(() => {
+            this.eva._load_states(this.state_updates, this.name);
+          }, reload * 1000);
+        }
+      } else {
+        this._ajax_reloader = setInterval(() => {
+          this.eva._load_states(this.state_updates, this.name);
+        }, this.eva._intervals.get(IntervalKind.AjaxReload) as number);
+      }
+    });
+  }
+  _restart() {
+    this._stop();
+    this._start();
+  }
+  _stop() {
+    if (this._ajax_reloader) {
+      clearInterval(this._ajax_reloader);
+    }
+    const ws = this.eva.ws.get(this.name);
+    if (ws) {
+      ws.close();
+      this.eva.ws.delete(this.name);
+    }
+  }
+}
+
 class Eva {
   action: Eva_ACTION;
   lvar: Eva_LVAR;
@@ -616,7 +667,7 @@ class Eva {
   version: string;
   wasm: boolean | string;
   ws_mode: boolean;
-  ws: any;
+  ws: Map<string | null, WebSocket>;
   server_info: any;
   _api_call_id: number;
   _handlers: Map<EventKind, (...args: any[]) => void | boolean>;
@@ -626,14 +677,15 @@ class Eva {
   _ajax_reloader: any;
   _log_reloader: any;
   _scheduled_restarter: any;
-  _states: Map<string, ItemState>;
+  _states: Map<string | null, Map<string, ItemState>>;
+  _blocks: Map<string, _EvaBlock>;
   _action_states: Map<string, ActionResult>;
   _action_watch_functions: Map<
     String,
     Array<(result: ActionResult | EvaError) => void>
   >;
-  _last_ping: number | null;
-  _last_pong: number | null;
+  _last_ping: Map<string | null, number | null>;
+  _last_pong: Map<string | null, number | null>;
   _log_subscribed: boolean;
   _log_started: boolean;
   _log_first_load: boolean;
@@ -660,12 +712,14 @@ class Eva {
     this.clear_unavailable = false;
     this._ws_handler_registered = false;
     this.ws_mode = true;
-    this.ws = null;
+    this.ws = new Map();
     //this.api_version = null;
     this._api_call_id = 0;
     this.tsdiff = 0;
-    this._last_ping = null;
-    this._last_pong = null;
+    this._last_ping = new Map();
+    this._last_ping.set(null, null);
+    this._last_pong = new Map();
+    this._last_pong.set(null, null);
     this._log_subscribed = false;
     this._log_started = false;
     this._log_first_load = false;
@@ -684,6 +738,8 @@ class Eva {
     this._handlers = new Map([[EventKind.HeartBeatError, this.restart]]);
     this._handlers.set(EventKind.HeartBeatError, this.restart);
     this._states = new Map();
+    this._states.set(null, new Map());
+    this._blocks = new Map();
     this._intervals = new Map([
       [IntervalKind.AjaxReload, 2],
       [IntervalKind.AjaxLogReload, 2],
@@ -737,6 +793,37 @@ class Eva {
     }
   }
 
+  register_block(name: string, state_updates: boolean | Array<string>) {
+    if (name == GLOBAL_BLOCK_NAME) {
+      throw new EvaError(
+        EvaErrorKind.INVALID_PARAMS,
+        `Block name ${GLOBAL_BLOCK_NAME} is reserved`
+      );
+    }
+    const old_block = this._blocks.get(name);
+    if (old_block) {
+      console.error(
+        `WebEngine block ${name} has been already registered, removing the old instance`
+      );
+      old_block._stop();
+    }
+    const block = new _EvaBlock(name, state_updates, this);
+    if (this.logged_in) {
+      block._start();
+    }
+    this._blocks.set(name, block);
+    this._states.set(name, new Map());
+  }
+
+  unregister_block(name: string) {
+    const block = this._blocks.get(name);
+    if (block) {
+      block._stop();
+      this._delete_block(name);
+      this._blocks.delete(name);
+    }
+  }
+
   bulk_request(): EvaBulkRequest {
     return new EvaBulkRequest(this);
   }
@@ -778,8 +865,7 @@ class Eva {
     }
   }
   _start_engine() {
-    this._last_ping = null;
-    this._last_pong = null;
+    this._clear_last_pings();
     let q: LoginPayload = {};
     if (this.apikey) {
       q = { k: this.apikey };
@@ -826,9 +912,9 @@ class Eva {
         //this.evajw.set_api_version(data.api_version || 4);
         //}
         return Promise.all([
-          this._load_states(),
+          this._load_states(this.state_updates, null),
           this._heartbeat(true),
-          this._start_ws()
+          this._start_ws(this.state_updates, null)
         ]);
       })
       .then(() => {
@@ -837,7 +923,7 @@ class Eva {
             clearInterval(this._ajax_reloader);
           }
           this._ajax_reloader = setInterval(() => {
-            this._load_states().catch(() => {});
+            this._load_states(this.state_updates, null).catch(() => {});
           }, (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000);
         } else {
           if (this._ajax_reloader) {
@@ -846,7 +932,7 @@ class Eva {
           let reload = this._intervals.get(IntervalKind.Reload) as number;
           if (reload) {
             this._ajax_reloader = setInterval(() => {
-              this._load_states().catch(() => {});
+              this._load_states(this.state_updates, null).catch(() => {});
             }, reload * 1000);
           }
         }
@@ -860,6 +946,9 @@ class Eva {
         this.logged_in = true;
         this.authorized_user = user;
         this._invoke_handler(EventKind.LoginSuccess);
+        for (const [_, block] of this._blocks) {
+          block._restart();
+        }
       })
       .catch((err) => {
         this._debug("start", err);
@@ -932,10 +1021,11 @@ class Eva {
     clear_existing?: boolean
   ) {
     this.state_updates = state_updates;
-    if (this.ws && this.ws.readyState === 1) {
+    const ws = this.ws.get(null);
+    if (ws && ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
-      await this.ws.send(JSON.stringify(st));
-      await this.ws.send("");
+      ws.send(JSON.stringify(st));
+      ws.send("");
       if (this.state_updates) {
         let st: WsCommand = { m: "subscribe.state" };
         let masks;
@@ -945,14 +1035,14 @@ class Eva {
           masks = this.state_updates;
         }
         st.p = masks;
-        await this.ws.send(JSON.stringify(st));
-        await this.ws.send("");
+        ws.send(JSON.stringify(st));
+        ws.send("");
       }
     }
     if (clear_existing) {
-      this._clear_states();
+      this._clear_states(null);
     }
-    await this._load_states();
+    await this._load_states(this.state_updates, null);
   }
 
   /**
@@ -1179,10 +1269,11 @@ class Eva {
   // WASM override
   watch(oid: string, func: (state: ItemState) => void, ignore_initial = false) {
     if (oid.includes("*")) {
-      let fcs = this._update_state_mask_functions.get(oid);
+      const map = this._update_state_mask_functions;
+      let fcs = map?.get(oid);
       if (fcs === undefined) {
         fcs = [];
-        this._update_state_mask_functions.set(oid, fcs);
+        map?.set(oid, fcs);
       }
       fcs.push(func);
       if (!ignore_initial) {
@@ -1194,10 +1285,11 @@ class Eva {
         }
       }
     } else {
-      let fcs = this._update_state_functions.get(oid);
+      const map = this._update_state_functions;
+      let fcs = map?.get(oid);
       if (fcs === undefined) {
         fcs = [];
-        this._update_state_functions.set(oid, fcs);
+        map?.set(oid, fcs);
       }
       fcs.push(func);
       if (!ignore_initial) {
@@ -1302,9 +1394,10 @@ class Eva {
 
   // WASM override
   _unwatch_func(oid: string, func?: (state: ItemState) => void) {
-    let fcs = this._update_state_functions.get(oid);
+    const map = this._update_state_functions;
+    let fcs = map?.get(oid);
     if (fcs !== undefined) {
-      this._update_state_functions.set(
+      map?.set(
         oid,
         fcs.filter((el) => el !== func)
       );
@@ -1313,14 +1406,16 @@ class Eva {
 
   // WASM override
   _unwatch_all(oid: string) {
-    this._update_state_functions.delete(oid);
+    const map = this._update_state_functions;
+    map?.delete(oid);
   }
 
   // WASM override (not supported)
   _unwatch_mask_func(oid: string, func: (state: ItemState) => void) {
-    let fcs = this._update_state_mask_functions.get(oid);
+    const map = this._update_state_mask_functions;
+    let fcs = map?.get(oid);
     if (fcs !== undefined) {
-      this._update_state_mask_functions.set(
+      map?.set(
         oid,
         fcs.filter((el) => el !== func)
       );
@@ -1329,7 +1424,8 @@ class Eva {
 
   // WASM override
   _unwatch_mask_all(oid: string) {
-    this._update_state_mask_functions.delete(oid);
+    const map = this._update_state_mask_functions;
+    map?.delete(oid);
   }
 
   /**
@@ -1354,7 +1450,7 @@ class Eva {
    * @returns item value or undefined if no item found
    */
   // WASM override
-  value(oid: string): number | undefined {
+  value(oid: string): any | undefined {
     let state = this.state(oid) as ItemState;
     if (state === undefined || state === null) return undefined;
     if (Number(state.value) == state.value) {
@@ -1381,17 +1477,22 @@ class Eva {
 
   // WASM override
   _state(oid: string) {
-    return this._states.get(oid);
+    for (const [_, v] of this._states) {
+      const state = v.get(oid);
+      if (state !== undefined) return state;
+    }
   }
 
   // WASM override
   _states_by_mask(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
-    this._states.forEach((v, k) => {
-      if (oid_mask == "*" || this._oid_match(k, oid_mask)) {
-        result.push(v);
-      }
-    }, this);
+    for (const [_, st] of this._states) {
+      st.forEach((v, k) => {
+        if (oid_mask == "*" || this._oid_match(k, oid_mask)) {
+          result.push(v);
+        }
+      });
+    }
     return result;
   }
 
@@ -1457,11 +1558,12 @@ class Eva {
         this._unwatch_mask_all = mod.unwatch_mask_all;
         this.status = mod.status;
         this.value = mod.value;
-        this._state = mod.state;
+        this.state = mod.state;
         this._states_by_mask = mod.states_by_mask;
         this._process_loaded_states = mod.process_loaded_states;
         this._process_ws = mod.process_ws;
         this._clear_state = mod.clear_state;
+        this._delete_block = mod.delete_block;
         // transfer registered watchers to WASM
         function transfer_watchers(
           src: Map<string, Array<(state: ItemState) => void>>,
@@ -1483,6 +1585,15 @@ class Eva {
     }
   }
 
+  /// WASM override
+  _delete_block(block: string) {
+    this._states.delete(block);
+    this._update_state_functions.delete(block);
+    this._update_state_mask_functions.delete(block);
+    this._last_ping.delete(block);
+    this._last_pong.delete(block);
+  }
+
   _start_evajw() {
     this.evajw = undefined;
     const js_path = this.wasm === true ? "./evajw/evajw.js" : this.wasm;
@@ -1502,13 +1613,27 @@ class Eva {
   }
 
   // WASM override
-  _clear_states() {
-    this._states.clear();
+  _clear_states(block?: string | null) {
+    if (block !== undefined) {
+      this._states.get(block)?.clear();
+    } else {
+      for (let [_, v] of this._states) {
+        v.clear();
+      }
+    }
+  }
+
+  _clear_last_pings() {
+    for (const [k, _] of this._blocks) {
+      this._last_ping.set(k, null);
+      this._last_pong.set(k, null);
+    }
   }
 
   _clear() {
-    //this._clear_watchers();
+    this._clear_watchers();
     this._clear_states();
+    this._clear_last_pings();
     this.server_info = null;
     this.tsdiff = 0;
     this._log_subscribed = false;
@@ -1516,8 +1641,6 @@ class Eva {
     this._log_loaded = false;
     this._log_started = false;
     this._lr2p = [];
-    this._last_ping = null;
-    this._last_pong = null;
   }
 
   _critical(message: any, write_on_screen = false, throw_err = true) {
@@ -1620,31 +1743,47 @@ class Eva {
   }
 
   async _heartbeat(on_login: boolean): Promise<void> {
+    //const ws = this.ws.get(null);
     return new Promise((resolve, reject) => {
-      if (on_login) this._last_ping = null;
+      if (on_login) {
+        this._clear_last_pings();
+      }
       if (this.ws_mode) {
-        if (this._last_ping !== null) {
-          if (
-            this._last_pong === null ||
-            this._last_ping - this._last_pong >
-              (this._intervals.get(IntervalKind.Heartbeat) as number)
-          ) {
-            this._debug("heartbeat", "error: ws ping timeout");
-            this._invoke_handler(EventKind.HeartBeatError);
+        for (const [k, last_ping] of this._last_ping) {
+          if (last_ping) {
+            const last_pong = this._last_pong.get(k) || null;
+            if (
+              last_pong === null ||
+              last_ping - last_pong >
+                (this._intervals.get(IntervalKind.Heartbeat) as number)
+            ) {
+              this._debug(
+                "heartbeat",
+                `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`
+              );
+              this._invoke_handler(EventKind.HeartBeatError);
+            }
           }
         }
-        if (!on_login && this.ws && this.ws.readyState == 1) {
-          this._last_ping = Date.now() / 1000;
-          try {
-            this._debug("heartbeat", "ws ping");
-            let payload = { m: "ping" };
-            this.ws.send(JSON.stringify(payload));
-            this.ws.send("");
-          } catch (err) {
-            this._debug("heartbeat", "error: unable to send ws ping");
-            this._invoke_handler(EventKind.HeartBeatError, err);
-            reject();
-            return;
+        if (!on_login) {
+          for (const [k, ws] of this.ws) {
+            if (ws && ws?.readyState >= 1) {
+              this._last_ping.set(k, Date.now() / 1000);
+              try {
+                this._debug(
+                  `block ${k || GLOBAL_BLOCK_NAME} heartbeat`,
+                  "ws ping"
+                );
+                let payload = { m: "ping" };
+                ws.send(JSON.stringify(payload));
+                ws.send("");
+              } catch (err) {
+                this._debug("heartbeat", "error: unable to send ws ping");
+                this._invoke_handler(EventKind.HeartBeatError, err);
+                reject();
+                return;
+              }
+            }
           }
         }
       }
@@ -1700,6 +1839,9 @@ class Eva {
   }
 
   _stop_engine() {
+    for (let [_, block] of this._blocks) {
+      block._stop();
+    }
     this._clear();
     if (this._heartbeat_reloader) {
       clearInterval(this._heartbeat_reloader);
@@ -1713,17 +1855,18 @@ class Eva {
       clearInterval(this._log_reloader);
       this._log_reloader = null;
     }
-    if (this.ws) {
+    const ws = this.ws.get(null);
+    if (ws) {
       try {
-        this.ws.onclose = null;
-        this.ws.onerror = function () {};
+        ws.onclose = null;
+        ws.onerror = function () {};
         //this.ws.send(JSON.stringify({s: 'bye'}));
-        this.ws.close();
+        ws.close();
       } catch (err) {
         // web socket may be still open, will close later
         setTimeout(() => {
           try {
-            this.ws.close();
+            ws.close();
           } catch (err) {}
         }, 100);
       }
@@ -1754,7 +1897,11 @@ class Eva {
   }
 
   // WASM override
-  _process_loaded_states(data: Array<ItemState>, clear_unavailable: boolean) {
+  _process_loaded_states(
+    data: Array<ItemState>,
+    clear_unavailable: boolean,
+    block: string | null
+  ) {
     let received_oids: string[] = [];
     if (clear_unavailable) {
       data.map((s) => {
@@ -1763,35 +1910,39 @@ class Eva {
         }
       });
     }
-    data.map((s) => this._process_state(s));
+    data.map((s) => this._process_state(s, clear_unavailable, block));
     if (clear_unavailable) {
-      this._states.forEach((state, oid) => {
+      const map = this._states.get(block || null);
+      map?.forEach((state, oid) => {
         if (
           state.status !== undefined &&
           state.status !== null &&
           !received_oids.includes(oid)
         ) {
           this._debug(`clearing unavailable item ${oid}`);
-          this._clear_state(oid);
+          this._clear_state(oid, block);
         }
       });
     }
   }
 
-  async _load_states(): Promise<void> {
+  async _load_states(
+    state_updates: boolean | Array<string>,
+    block: string | null
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.state_updates) {
+      if (!state_updates) {
         resolve();
       } else {
         let params: StatePayload = { full: true };
-        if (this.state_updates == true) {
+        if (state_updates == true) {
           params.i = "#";
         } else {
-          params.i = this.state_updates;
+          params.i = state_updates;
         }
         this.call("item.state", params)
           .then((data: Array<ItemState>) => {
-            this._process_loaded_states(data, this.clear_unavailable);
+            this._process_loaded_states(data, this.clear_unavailable, block);
             resolve();
           })
           .catch((err: EvaError) => {
@@ -1801,7 +1952,10 @@ class Eva {
     });
   }
 
-  async _start_ws(): Promise<void> {
+  async _start_ws(
+    state_updates: boolean | Array<string>,
+    block: string | null
+  ): Promise<void> {
     return new Promise((resolve) => {
       if (this.ws_mode) {
         let uri;
@@ -1829,30 +1983,35 @@ class Eva {
             uri += "//" + loc.host + this.api_uri;
           }
         }
-        let ws_uri = `${uri}/ws?k=${this.api_token}`;
+        let ws_uri = `${uri}/ws?`;
+        if (block) {
+          ws_uri += `_block=${block}&`;
+        }
+        ws_uri += `k=${this.api_token}`;
         let ws_buf_ttl = this._intervals.get(IntervalKind.WSBufTTL) as number;
         if (ws_buf_ttl > 0) {
           ws_uri += `&buf_ttl=${ws_buf_ttl}`;
         }
-        this.ws = new this.external.WebSocket(ws_uri);
-        this.ws.onmessage = (evt: any) => {
-          this._process_ws(evt.data);
+        const ws = new this.external.WebSocket(ws_uri);
+        this.ws.set(block, ws);
+        ws.onmessage = (evt: any) => {
+          this._process_ws(evt.data, block);
         };
-        this.ws.addEventListener("open", () => {
+        ws.addEventListener("open", () => {
           this._debug("_start_ws", "ws connected");
-          if (this.state_updates) {
+          if (state_updates) {
             let st: WsCommand = {
               m: "subscribe.state"
             };
             let masks;
-            if (this.state_updates == true) {
+            if (state_updates == true) {
               masks = ["#"];
             } else {
-              masks = this.state_updates;
+              masks = state_updates;
             }
             st.p = masks;
-            this.ws.send(JSON.stringify(st));
-            this.ws.send("");
+            ws.send(JSON.stringify(st));
+            ws.send("");
           }
           if (this._log_subscribed) {
             this.set_log_level(this.log_params.level);
@@ -1868,16 +2027,16 @@ class Eva {
     try {
       if (this.ws) {
         let payload: WsCommand = { m: "subscribe.log", p: level };
-        this.ws.send(JSON.stringify(payload));
-        this.ws.send("");
+        (this.ws.get(null) as any).send(JSON.stringify(payload));
+        (this.ws.get(null) as any).send("");
       }
     } catch (err) {
       this._debug("log_level", "warning: unable to send ws packet", err);
     }
   }
 
-  _process_ws_frame_pong() {
-    this._last_pong = Date.now() / 1000;
+  _process_ws_frame_pong(block: string | null) {
+    this._last_pong.set(block, Date.now() / 1000);
   }
 
   _process_ws_frame_log(data: Array<LogRecord> | LogRecord) {
@@ -1890,45 +2049,47 @@ class Eva {
   }
 
   // WASM override
-  _process_ws(payload: string) {
+  _process_ws(payload: string, block: string | null) {
     let data = JSON.parse(payload);
     if (data.s == "pong") {
       this._debug("ws", "pong");
-      this._process_ws_frame_pong();
+      this._process_ws_frame_pong(block);
       return;
     }
-    if (data.s == "reload") {
-      this._debug("ws", "reload");
-      this._invoke_handler(EventKind.ServerReload);
-      return;
+    if (block === null) {
+      if (data.s == "reload") {
+        this._debug("ws", "reload");
+        this._invoke_handler(EventKind.ServerReload);
+        return;
+      }
+      if (data.s == "server") {
+        let ev = "server." + data.d;
+        this._debug("ws", ev);
+        this._invoke_handler(ev as EventKind);
+        return;
+      }
+      if (data.s.substring(0, 11) == "supervisor.") {
+        this._debug("ws", data.s);
+        this._invoke_handler(data.s, data.d);
+        return;
+      }
+      if (this._invoke_handler(EventKind.WsEvent, data) === false) return;
+      if (data.s == "log") {
+        this._debug("ws", "log");
+        this._process_ws_frame_log(data.d);
+        return;
+      }
     }
-    if (data.s == "server") {
-      let ev = "server." + data.d;
-      this._debug("ws", ev);
-      this._invoke_handler(ev as EventKind);
-      return;
-    }
-    if (data.s.substring(0, 11) == "supervisor.") {
-      this._debug("ws", data.s);
-      this._invoke_handler(data.s, data.d);
-      return;
-    }
-    if (this._invoke_handler(EventKind.WsEvent, data) === false) return;
     if (data.s == "state") {
       this._debug("ws", "state");
       if (Array.isArray(data.d)) {
         data.d.map(
-          (state: ItemState) => this._process_state(state, true),
+          (state: ItemState) => this._process_state(state, true, block),
           this
         );
       } else {
-        this._process_state(data.d, true);
+        this._process_state(data.d, true, block);
       }
-      return;
-    }
-    if (data.s == "log") {
-      this._debug("ws", "log");
-      this._process_ws_frame_log(data.d);
       return;
     }
   }
@@ -1940,22 +2101,27 @@ class Eva {
   }
 
   // WASM override
-  _clear_state(oid: string) {
-    this._states.delete(oid);
-    this._process_state({
-      oid: oid,
-      status: null,
-      value: null
-    });
+  _clear_state(oid: string, block: string | null) {
+    this._states.get(block || null)?.delete(oid);
+    this._process_state(
+      {
+        oid: oid,
+        status: null,
+        value: null
+      },
+      false,
+      block
+    );
   }
 
-  _process_state(state: ItemState, is_update = false) {
+  _process_state(state: ItemState, is_update = false, block: string | null) {
+    const map = this._states.get(block || null);
     try {
       if (state.oid === undefined) {
         return;
       }
       let oid: string = state.oid;
-      let old_state = this._states.get(oid);
+      let old_state = map?.get(oid);
       if (!old_state && is_update) {
         return;
       }
@@ -1985,7 +2151,7 @@ class Eva {
           `${oid} s: ${state.status} v: "${state.value}"`,
           `act: ${state.act} t: "${state.t}"`
         );
-        this._states.set(oid, state);
+        map?.set(oid, state);
         let fcs = this._update_state_functions.get(oid);
         if (fcs) {
           fcs.map((f) => {
@@ -2147,6 +2313,13 @@ class Eva {
     this.register_globals();
   }
 }
+
+//const throw_no_block = () => {
+//throw new EvaError(
+//EvaErrorKind.INVALID_PARAMS,
+//"WebEngine block not defined"
+//);
+//};
 
 export {
   Eva,
