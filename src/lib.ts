@@ -1600,8 +1600,8 @@ class Eva {
         this._process_loaded_states = mod.process_loaded_states;
         this._process_ws = mod.process_ws;
         this._clear_state = mod.clear_state;
-        this._init_block = mod.init_block;
-        this._delete_block = mod.delete_block;
+        this._init_block_states = mod.init_block_states;
+        this._delete_block_states = mod.delete_block_states;
         // transfer registered watchers to WASM
         function transfer_watchers(
           src: Map<string, Array<(state: ItemState) => void>>,
@@ -1623,16 +1623,26 @@ class Eva {
     }
   }
 
-  /// WASM override
   _init_block(block: string) {
-    this._states.set(block, new Map());
+    this._init_block_states(block);
+    this._last_ping.set(block, null);
+    this._last_pong.set(block, null);
   }
 
   /// WASM override
+  _init_block_states(block: string) {
+    this._states.set(block, new Map());
+  }
+
   _delete_block(block: string) {
-    this._states.delete(block);
     this._last_ping.delete(block);
     this._last_pong.delete(block);
+    this._delete_block_states(block);
+  }
+
+  /// WASM override
+  _delete_block_states(block: string) {
+    this._states.delete(block);
   }
 
   _start_evajw() {
