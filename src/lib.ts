@@ -63,7 +63,7 @@ enum StateProp {
   Any = "any"
 }
 
-const GLOBAL_BLOCK_NAME = "GLOBAL";
+const GLOBAL_BLOCK_NAME = ".";
 
 interface EvaConfig {
   engine?: EvaEngineConfig;
@@ -635,8 +635,19 @@ class _EvaStateBlock {
     }
     const ws = this.eva.ws.get(this.name);
     if (ws) {
-      ws.close();
       this.eva.ws.delete(this.name);
+      try {
+        ws.onclose = null;
+        ws.onerror = function () {};
+        ws.close();
+      } catch (err) {
+        // web socket may be still open, will close later
+        setTimeout(() => {
+          try {
+            ws.close();
+          } catch (err) {}
+        }, 100);
+      }
     }
   }
 }
@@ -667,7 +678,6 @@ class Eva {
   version: string;
   wasm: boolean | string;
   ws_mode: boolean;
-  ws: Map<string | null, WebSocket>;
   server_info: any;
   _api_call_id: number;
   _handlers: Map<EventKind, (...args: any[]) => void | boolean>;
@@ -677,15 +687,16 @@ class Eva {
   _ajax_reloader: any;
   _log_reloader: any;
   _scheduled_restarter: any;
-  _states: Map<string | null, Map<string, ItemState>>;
+  _states: Map<string, Map<string, ItemState>>;
   _blocks: Map<string, _EvaStateBlock>;
+  _last_ping: Map<string, number | null>;
+  _last_pong: Map<string, number | null>;
+  ws: Map<string, WebSocket>;
   _action_states: Map<string, ActionResult>;
   _action_watch_functions: Map<
     String,
     Array<(result: ActionResult | EvaError) => void>
   >;
-  _last_ping: Map<string | null, number | null>;
-  _last_pong: Map<string | null, number | null>;
   _log_subscribed: boolean;
   _log_started: boolean;
   _log_first_load: boolean;
@@ -717,9 +728,9 @@ class Eva {
     this._api_call_id = 0;
     this.tsdiff = 0;
     this._last_ping = new Map();
-    this._last_ping.set(null, null);
+    this._last_ping.set(GLOBAL_BLOCK_NAME, null);
     this._last_pong = new Map();
-    this._last_pong.set(null, null);
+    this._last_pong.set(GLOBAL_BLOCK_NAME, null);
     this._log_subscribed = false;
     this._log_started = false;
     this._log_first_load = false;
@@ -738,7 +749,7 @@ class Eva {
     this._handlers = new Map([[EventKind.HeartBeatError, this.restart]]);
     this._handlers.set(EventKind.HeartBeatError, this.restart);
     this._states = new Map();
-    this._states.set(null, new Map());
+    this._states.set(GLOBAL_BLOCK_NAME, new Map());
     this._blocks = new Map();
     this._intervals = new Map([
       [IntervalKind.AjaxReload, 2],
@@ -934,9 +945,9 @@ class Eva {
         //this.evajw.set_api_version(data.api_version || 4);
         //}
         return Promise.all([
-          this._load_states(this.state_updates, null),
+          this._load_states(this.state_updates, GLOBAL_BLOCK_NAME),
           this._heartbeat(true),
-          this._start_ws(this.state_updates, null)
+          this._start_ws(this.state_updates, GLOBAL_BLOCK_NAME)
         ]);
       })
       .then(() => {
@@ -945,7 +956,9 @@ class Eva {
             clearInterval(this._ajax_reloader);
           }
           this._ajax_reloader = setInterval(() => {
-            this._load_states(this.state_updates, null).catch(() => {});
+            this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
+              () => {}
+            );
           }, (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000);
         } else {
           if (this._ajax_reloader) {
@@ -954,7 +967,9 @@ class Eva {
           let reload = this._intervals.get(IntervalKind.Reload) as number;
           if (reload) {
             this._ajax_reloader = setInterval(() => {
-              this._load_states(this.state_updates, null).catch(() => {});
+              this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
+                () => {}
+              );
             }, reload * 1000);
           }
         }
@@ -1043,7 +1058,7 @@ class Eva {
     clear_existing?: boolean
   ) {
     this.state_updates = state_updates;
-    const ws = this.ws.get(null);
+    const ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws && ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
       ws.send(JSON.stringify(st));
@@ -1062,9 +1077,9 @@ class Eva {
       }
     }
     if (clear_existing) {
-      this._clear_states(null);
+      this._clear_states(GLOBAL_BLOCK_NAME);
     }
-    await this._load_states(this.state_updates, null);
+    await this._load_states(this.state_updates, GLOBAL_BLOCK_NAME);
   }
 
   /**
@@ -1639,7 +1654,7 @@ class Eva {
   }
 
   // WASM override
-  _clear_states(block?: string | null) {
+  _clear_states(block?: string) {
     if (block !== undefined) {
       this._states.get(block)?.clear();
     } else {
@@ -1881,12 +1896,11 @@ class Eva {
       clearInterval(this._log_reloader);
       this._log_reloader = null;
     }
-    const ws = this.ws.get(null);
+    const ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws) {
       try {
         ws.onclose = null;
         ws.onerror = function () {};
-        //this.ws.send(JSON.stringify({s: 'bye'}));
         ws.close();
       } catch (err) {
         // web socket may be still open, will close later
@@ -1926,7 +1940,7 @@ class Eva {
   _process_loaded_states(
     data: Array<ItemState>,
     clear_unavailable: boolean,
-    block: string | null
+    block: string
   ) {
     let received_oids: string[] = [];
     if (clear_unavailable) {
@@ -1938,7 +1952,7 @@ class Eva {
     }
     data.map((s) => this._process_state(s, clear_unavailable, block));
     if (clear_unavailable) {
-      const map = this._states.get(block || null);
+      const map = this._states.get(block);
       map?.forEach((state, oid) => {
         if (
           state.status !== undefined &&
@@ -1954,7 +1968,7 @@ class Eva {
 
   async _load_states(
     state_updates: boolean | Array<string>,
-    block: string | null
+    block: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!state_updates) {
@@ -1980,7 +1994,7 @@ class Eva {
 
   async _start_ws(
     state_updates: boolean | Array<string>,
-    block: string | null
+    block: string
   ): Promise<void> {
     return new Promise((resolve) => {
       if (this.ws_mode) {
@@ -2053,15 +2067,15 @@ class Eva {
     try {
       if (this.ws) {
         let payload: WsCommand = { m: "subscribe.log", p: level };
-        (this.ws.get(null) as any).send(JSON.stringify(payload));
-        (this.ws.get(null) as any).send("");
+        (this.ws.get(GLOBAL_BLOCK_NAME) as any).send(JSON.stringify(payload));
+        (this.ws.get(GLOBAL_BLOCK_NAME) as any).send("");
       }
     } catch (err) {
       this._debug("log_level", "warning: unable to send ws packet", err);
     }
   }
 
-  _process_ws_frame_pong(block: string | null) {
+  _process_ws_frame_pong(block: string) {
     this._last_pong.set(block, Date.now() / 1000);
   }
 
@@ -2075,7 +2089,7 @@ class Eva {
   }
 
   // WASM override
-  _process_ws(payload: string, block: string | null) {
+  _process_ws(payload: string, block: string) {
     let data = JSON.parse(payload);
     if (data.s == "pong") {
       this._debug("ws", "pong");
@@ -2127,8 +2141,8 @@ class Eva {
   }
 
   // WASM override
-  _clear_state(oid: string, block: string | null) {
-    this._states.get(block || null)?.delete(oid);
+  _clear_state(oid: string, block: string) {
+    this._states.get(block)?.delete(oid);
     this._process_state(
       {
         oid: oid,
@@ -2140,8 +2154,8 @@ class Eva {
     );
   }
 
-  _process_state(state: ItemState, is_update = false, block: string | null) {
-    const map = this._states.get(block || null);
+  _process_state(state: ItemState, is_update = false, block: string) {
+    const map = this._states.get(block);
     try {
       if (state.oid === undefined) {
         return;
