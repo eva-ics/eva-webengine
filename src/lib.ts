@@ -817,6 +817,7 @@ class Eva {
         `WebEngine state block name ${GLOBAL_BLOCK_NAME} is reserved`
       );
     }
+    check_state_updates(state_updates);
     const old_block = this._blocks.get(name);
     if (old_block) {
       console.error(
@@ -1057,6 +1058,7 @@ class Eva {
     state_updates: Array<string> | boolean,
     clear_existing?: boolean
   ) {
+    check_state_updates(state_updates);
     this.state_updates = state_updates;
     const ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws && ws.readyState === 1) {
@@ -2006,6 +2008,7 @@ class Eva {
     state_updates: boolean | Array<string>,
     block: string
   ): Promise<void> {
+    check_state_updates(state_updates);
     return new Promise((resolve) => {
       if (this.ws_mode) {
         let uri;
@@ -2370,6 +2373,19 @@ class Eva {
 //"WebEngine block not defined"
 //);
 //};
+
+const check_state_updates = (state_updates: any) => {
+  if (
+    !Array.isArray(state_updates) &&
+    state_updates !== true &&
+    state_updates !== false
+  ) {
+    throw new EvaError(
+      EvaErrorKind.INVALID_PARAMS,
+      "state_updates must be an array or boolean"
+    );
+  }
+};
 
 export {
   Eva,
