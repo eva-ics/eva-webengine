@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.7.1";
+const eva_webengine_version = "0.7.2";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1597,7 +1597,7 @@ class Eva {
         this._unwatch_mask_all = mod.unwatch_mask_all;
         this.status = mod.status;
         this.value = mod.value;
-        this.state = mod.state;
+        this._state = mod.state;
         this._states_by_mask = mod.states_by_mask;
         this._process_loaded_states = mod.process_loaded_states;
         this._process_ws = mod.process_ws;
