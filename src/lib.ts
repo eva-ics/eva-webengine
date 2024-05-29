@@ -1684,7 +1684,6 @@ class Eva {
   }
 
   _clear() {
-    this._clear_watchers();
     this._clear_states();
     this._clear_last_pings();
     this.server_info = null;
