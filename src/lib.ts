@@ -633,7 +633,7 @@ class _EvaStateBlock {
     if (this._ajax_reloader) {
       clearInterval(this._ajax_reloader);
     }
-    const ws = this.eva.ws.get(this.name);
+    let ws = this.eva.ws.get(this.name);
     if (ws) {
       this.eva.ws.delete(this.name);
       try {
@@ -818,14 +818,14 @@ class Eva {
       );
     }
     check_state_updates(state_updates);
-    const old_block = this._blocks.get(name);
+    let old_block = this._blocks.get(name);
     if (old_block) {
       console.error(
         `WebEngine state block ${name} has been already registered, removing the old instance`
       );
       old_block._stop();
     }
-    const block = new _EvaStateBlock(name, state_updates, this);
+    let block = new _EvaStateBlock(name, state_updates, this);
     if (this.logged_in) {
       block._start();
     }
@@ -839,7 +839,7 @@ class Eva {
    * @param name {string} block name
    */
   unregister_state_block(name: string) {
-    const block = this._blocks.get(name);
+    let block = this._blocks.get(name);
     if (block) {
       block._stop();
       this._delete_block(name);
@@ -851,7 +851,7 @@ class Eva {
    * Unregister all state blocks
    */
   unregister_all_state_blocks() {
-    for (const [name, block] of this._blocks) {
+    for (let [name, block] of this._blocks) {
       block._stop();
       this._delete_block(name);
     }
@@ -984,7 +984,7 @@ class Eva {
         this.logged_in = true;
         this.authorized_user = user;
         this._invoke_handler(EventKind.LoginSuccess);
-        for (const [_, block] of this._blocks) {
+        for (let [_, block] of this._blocks) {
           block._restart();
         }
       })
@@ -1060,7 +1060,7 @@ class Eva {
   ) {
     check_state_updates(state_updates);
     this.state_updates = state_updates;
-    const ws = this.ws.get(GLOBAL_BLOCK_NAME);
+    let ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws && ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
       ws.send(JSON.stringify(st));
@@ -1308,7 +1308,7 @@ class Eva {
   // WASM override
   watch(oid: string, func: (state: ItemState) => void, ignore_initial = false) {
     if (oid.includes("*")) {
-      const map = this._update_state_mask_functions;
+      let map = this._update_state_mask_functions;
       let fcs = map?.get(oid);
       if (fcs === undefined) {
         fcs = [];
@@ -1324,7 +1324,7 @@ class Eva {
         }
       }
     } else {
-      const map = this._update_state_functions;
+      let map = this._update_state_functions;
       let fcs = map?.get(oid);
       if (fcs === undefined) {
         fcs = [];
@@ -1433,7 +1433,7 @@ class Eva {
 
   // WASM override
   _unwatch_func(oid: string, func?: (state: ItemState) => void) {
-    const map = this._update_state_functions;
+    let map = this._update_state_functions;
     let fcs = map?.get(oid);
     if (fcs !== undefined) {
       map?.set(
@@ -1445,13 +1445,13 @@ class Eva {
 
   // WASM override
   _unwatch_all(oid: string) {
-    const map = this._update_state_functions;
+    let map = this._update_state_functions;
     map?.delete(oid);
   }
 
   // WASM override (not supported)
   _unwatch_mask_func(oid: string, func: (state: ItemState) => void) {
-    const map = this._update_state_mask_functions;
+    let map = this._update_state_mask_functions;
     let fcs = map?.get(oid);
     if (fcs !== undefined) {
       map?.set(
@@ -1463,7 +1463,7 @@ class Eva {
 
   // WASM override
   _unwatch_mask_all(oid: string) {
-    const map = this._update_state_mask_functions;
+    let map = this._update_state_mask_functions;
     map?.delete(oid);
   }
 
@@ -1516,7 +1516,7 @@ class Eva {
 
   // WASM override
   _state(oid: string) {
-    for (const [_, v] of this._states) {
+    for (let [_, v] of this._states) {
       const state = v.get(oid);
       if (state !== undefined) return state;
     }
@@ -1525,7 +1525,7 @@ class Eva {
   // WASM override
   _states_by_mask(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
-    for (const [_, st] of this._states) {
+    for (let [_, st] of this._states) {
       st.forEach((v, k) => {
         if (oid_mask == "*" || this._oid_match(k, oid_mask)) {
           result.push(v);
@@ -1677,7 +1677,7 @@ class Eva {
   }
 
   _clear_last_pings() {
-    for (const [k, _] of this._blocks) {
+    for (let [k, _] of this._blocks) {
       this._last_ping.set(k, null);
       this._last_pong.set(k, null);
     }
@@ -1802,7 +1802,7 @@ class Eva {
         this._clear_last_pings();
       }
       if (this.ws_mode) {
-        for (const [k, last_ping] of this._last_ping) {
+        for (let [k, last_ping] of this._last_ping) {
           if (last_ping) {
             const last_pong = this._last_pong.get(k) || null;
             if (
@@ -1819,7 +1819,7 @@ class Eva {
           }
         }
         if (!on_login) {
-          for (const [k, ws] of this.ws) {
+          for (let [k, ws] of this.ws) {
             if (ws && ws?.readyState >= 1) {
               this._last_ping.set(k, Date.now() / 1000);
               try {
@@ -1908,7 +1908,7 @@ class Eva {
       clearInterval(this._log_reloader);
       this._log_reloader = null;
     }
-    const ws = this.ws.get(GLOBAL_BLOCK_NAME);
+    let ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws) {
       try {
         ws.onclose = null;
@@ -1918,7 +1918,7 @@ class Eva {
         // web socket may be still open, will close later
         setTimeout(() => {
           try {
-            ws.close();
+            ws?.close();
           } catch (err) {}
         }, 100);
       }
@@ -1964,7 +1964,7 @@ class Eva {
     }
     data.map((s) => this._process_state(s, clear_unavailable, block));
     if (clear_unavailable) {
-      const map = this._states.get(block);
+      let map = this._states.get(block);
       map?.forEach((state, oid) => {
         if (
           state.status !== undefined &&
@@ -2168,7 +2168,7 @@ class Eva {
   }
 
   _process_state(state: ItemState, is_update = false, block: string) {
-    const map = this._states.get(block);
+    let map = this._states.get(block);
     try {
       if (state.oid === undefined) {
         return;
