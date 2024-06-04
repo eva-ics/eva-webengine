@@ -644,7 +644,7 @@ class _EvaStateBlock {
         // web socket may be still open, will close later
         setTimeout(() => {
           try {
-            ws.close();
+            ws?.close();
           } catch (err) {}
         }, 100);
       }
@@ -1603,6 +1603,10 @@ class Eva {
         this._process_ws = mod.process_ws;
         this._clear_state = mod.clear_state;
         this._init_block_states = mod.init_block_states;
+        for (const block of this._blocks.keys()) {
+          this._delete_block_states(block);
+          this._init_block_states(block);
+        }
         this._delete_block_states = mod.delete_block_states;
         // transfer registered watchers to WASM
         function transfer_watchers(
