@@ -2112,7 +2112,7 @@ class Eva {
       this._process_ws_frame_pong(block);
       return;
     }
-    if (block === null) {
+    if (block === GLOBAL_BLOCK_NAME) {
       if (data.s == "reload") {
         this._debug("ws", "reload");
         this._invoke_handler(EventKind.ServerReload);
