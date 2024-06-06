@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.7.5";
+const eva_webengine_version = "0.8.1";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1447,10 +1447,12 @@ class Eva {
     let map = this._update_state_functions;
     let fcs = map?.get(oid);
     if (fcs !== undefined) {
-      map?.set(
-        oid,
-        fcs.filter((el) => el.func !== func)
-      );
+      const filteredWatchers = fcs.filter((watcher) => watcher.func !== func);
+      if (filteredWatchers.length > 0) {
+        map?.set(oid, filteredWatchers);
+      } else {
+        map?.delete(oid);
+      }
     }
   }
 
@@ -1634,10 +1636,7 @@ class Eva {
         }
         this._delete_block_states = mod.delete_block_states;
         // transfer registered watchers to WASM
-        function transfer_watchers(
-          src: Map<string, Array<Watcher>>,
-          mod: any
-        ) {
+        function transfer_watchers(src: Map<string, Array<Watcher>>, mod: any) {
           src.forEach((fcs, oid) => {
             fcs.forEach((f) => {
               mod.watch(oid, f.func, false, f.prot);
