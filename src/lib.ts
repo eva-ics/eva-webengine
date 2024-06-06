@@ -191,6 +191,11 @@ interface ItemState {
   value: any;
 }
 
+interface Watcher {
+  func: (state: ItemState) => void;
+  prot: boolean;
+}
+
 enum IntervalKind {
   AjaxReload = "ajax_reload",
   AjaxLogReload = "log_reload",
@@ -701,8 +706,8 @@ class Eva {
   _log_started: boolean;
   _log_first_load: boolean;
   _log_loaded: boolean;
-  _update_state_functions: Map<string, Array<(state: ItemState) => void>>;
-  _update_state_mask_functions: Map<string, Array<(state: ItemState) => void>>;
+  _update_state_functions: Map<string, Array<Watcher>>;
+  _update_state_mask_functions: Map<string, Array<Watcher>>;
   _lr2p: Array<LogRecord>;
 
   constructor() {
@@ -1303,10 +1308,16 @@ class Eva {
    * @param oid {string} item oid (e.g. sensor:env/temp1, or sensor:env/\*)
    * @param func {function} function to be called
    * @param ignore_initial {boolean} skip initial state callback
+   * @param prot {boolean} protected (not removed on global unwatch)
    *
    */
   // WASM override
-  watch(oid: string, func: (state: ItemState) => void, ignore_initial = false) {
+  watch(
+    oid: string,
+    func: (state: ItemState) => void,
+    ignore_initial = false,
+    prot = false
+  ) {
     if (oid.includes("*")) {
       let map = this._update_state_mask_functions;
       let fcs = map?.get(oid);
@@ -1314,7 +1325,7 @@ class Eva {
         fcs = [];
         map?.set(oid, fcs);
       }
-      fcs.push(func);
+      fcs.push({ func, prot });
       if (!ignore_initial) {
         let v = this.state(oid);
         if (Array.isArray(v)) {
@@ -1330,7 +1341,7 @@ class Eva {
         fcs = [];
         map?.set(oid, fcs);
       }
-      fcs.push(func);
+      fcs.push({ func, prot });
       if (!ignore_initial) {
         let state = this.state(oid) as ItemState;
         if (state !== undefined) func(state);
@@ -1438,7 +1449,7 @@ class Eva {
     if (fcs !== undefined) {
       map?.set(
         oid,
-        fcs.filter((el) => el !== func)
+        fcs.filter((el) => el.func !== func)
       );
     }
   }
@@ -1446,7 +1457,14 @@ class Eva {
   // WASM override
   _unwatch_all(oid: string) {
     let map = this._update_state_functions;
-    map?.delete(oid);
+    let watchers = map?.get(oid);
+    if (watchers === undefined) return;
+    const filteredWatchers = watchers.filter((watcher) => watcher.prot);
+    if (filteredWatchers.length > 0) {
+      map?.set(oid, filteredWatchers);
+    } else {
+      map?.delete(oid);
+    }
   }
 
   // WASM override (not supported)
@@ -1456,7 +1474,7 @@ class Eva {
     if (fcs !== undefined) {
       map?.set(
         oid,
-        fcs.filter((el) => el !== func)
+        fcs.filter((el) => el.func !== func)
       );
     }
   }
@@ -1464,7 +1482,14 @@ class Eva {
   // WASM override
   _unwatch_mask_all(oid: string) {
     let map = this._update_state_mask_functions;
-    map?.delete(oid);
+    let watchers = map?.get(oid);
+    if (watchers === undefined) return;
+    const filteredWatchers = watchers.filter((watcher) => watcher.prot);
+    if (filteredWatchers.length > 0) {
+      map?.set(oid, filteredWatchers);
+    } else {
+      map?.delete(oid);
+    }
   }
 
   /**
@@ -1610,12 +1635,12 @@ class Eva {
         this._delete_block_states = mod.delete_block_states;
         // transfer registered watchers to WASM
         function transfer_watchers(
-          src: Map<string, Array<(state: ItemState) => void>>,
+          src: Map<string, Array<Watcher>>,
           mod: any
         ) {
           src.forEach((fcs, oid) => {
             fcs.forEach((f) => {
-              mod.watch(oid, f, false);
+              mod.watch(oid, f.func, false, f.prot);
             });
           });
         }
@@ -1665,8 +1690,22 @@ class Eva {
 
   // WASM override
   _clear_watchers() {
-    this._update_state_functions.clear();
-    this._update_state_mask_functions.clear();
+    this._update_state_functions.forEach((watchers, key) => {
+      const filteredWatchers = watchers.filter((watcher) => watcher.prot);
+      if (filteredWatchers.length > 0) {
+        this._update_state_functions.set(key, filteredWatchers);
+      } else {
+        this._update_state_functions.delete(key);
+      }
+    });
+    this._update_state_mask_functions.forEach((watchers, key) => {
+      const filteredWatchers = watchers.filter((watcher) => watcher.prot);
+      if (filteredWatchers.length > 0) {
+        this._update_state_mask_functions.set(key, filteredWatchers);
+      } else {
+        this._update_state_mask_functions.delete(key);
+      }
+    });
   }
 
   // WASM override
@@ -2212,7 +2251,7 @@ class Eva {
         if (fcs) {
           fcs.map((f) => {
             try {
-              f(state);
+              f.func(state);
             } catch (err) {
               this.log.error(`state function processing for ${oid}:`, err);
             }
@@ -2222,7 +2261,7 @@ class Eva {
           if (this._oid_match(oid, k)) {
             fcs.map((f) => {
               try {
-                f(state);
+                f.func(state);
               } catch (err) {
                 this.log.error(`state function processing for ${oid}:`, err);
               }
@@ -2405,5 +2444,6 @@ export {
   StateProp,
   SvcMessage,
   EvaConfig,
-  EvaEngineConfig
+  EvaEngineConfig,
+  Watcher
 };
