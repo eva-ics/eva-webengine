@@ -43,8 +43,8 @@ enum EvaErrorKind {
 }
 
 enum EventKind {
-  HeartBeatSuccess = "heartbeat.success",
-  HeartBeatError = "heartbeat.error",
+  HeartbeatSuccess = "heartbeat.success",
+  HeartbeatError = "heartbeat.error",
   LoginSuccess = "login.success",
   LoginFailed = "login.failed",
   LoginOTPRequired = "login.otp_required",
@@ -751,8 +751,8 @@ class Eva {
     };
     this._update_state_functions = new Map();
     this._update_state_mask_functions = new Map();
-    this._handlers = new Map([[EventKind.HeartBeatError, this.restart]]);
-    this._handlers.set(EventKind.HeartBeatError, this.restart);
+    this._handlers = new Map();
+    this._handlers.set(EventKind.HeartbeatError, this.restart);
     this._states = new Map();
     this._states.set(GLOBAL_BLOCK_NAME, new Map());
     this._blocks = new Map();
@@ -996,9 +996,8 @@ class Eva {
       .catch((err) => {
         this._debug("start", err);
         this.logged_in = false;
-        if (err.code === undefined) {
-          err.code = EvaErrorKind.OTHER;
-          err.message = "Unknown error";
+        if (err?.code === undefined) {
+          err = new EvaError(EvaErrorKind.OTHER, "Unknown error");
         }
         this._debug("start", `login failed: ${err.code} (${err.message})`);
         this._stop_engine();
@@ -1855,7 +1854,10 @@ class Eva {
                 "heartbeat",
                 `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`
               );
-              this._invoke_handler(EventKind.HeartBeatError);
+              const err = new EvaError(EvaErrorKind.TIMEOUT, "WS ping timeout");
+              this._invoke_handler(EventKind.HeartbeatError, err);
+              reject(err);
+              return;
             }
           }
         }
@@ -1873,7 +1875,7 @@ class Eva {
                 ws.send("");
               } catch (err) {
                 this._debug("heartbeat", "error: unable to send ws ping");
-                this._invoke_handler(EventKind.HeartBeatError, err);
+                this._invoke_handler(EventKind.HeartbeatError, err);
                 reject();
                 return;
               }
@@ -1885,12 +1887,12 @@ class Eva {
         .then((data: any) => {
           this.server_info = data;
           this.tsdiff = new Date().getTime() / 1000 - data.time;
-          this._invoke_handler(EventKind.HeartBeatSuccess);
+          this._invoke_handler(EventKind.HeartbeatSuccess);
           resolve();
         })
         .catch((err: EvaError) => {
           this._debug("heartbeat", "error: unable to send test API call");
-          this._invoke_handler(EventKind.HeartBeatError, err);
+          this._invoke_handler(EventKind.HeartbeatError, err);
         });
       this._debug("heartbeat", "ok");
     });
