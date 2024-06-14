@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.4";
+const eva_webengine_version = "0.8.5";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -2457,7 +2457,7 @@ function disableTabFreeze(keep_visible?: boolean) {
   video.width = 2;
   video.height = 1;
   if (!keep_visible) {
-    video.style.display = "none";
+    video.width = 0;
   }
 }
 
