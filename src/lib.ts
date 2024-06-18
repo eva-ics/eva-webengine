@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.5";
+const eva_webengine_version = "0.8.6";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -661,6 +661,7 @@ class Eva {
   action: Eva_ACTION;
   lvar: Eva_LVAR;
   api_uri: string;
+  ws_uri: string;
   apikey: string;
   api_token: string;
   //api_version: number | null;
@@ -718,6 +719,7 @@ class Eva {
     this.login_xopts = null;
     this.apikey = "";
     this.api_uri = "";
+    this.ws_uri = "/ws";
     this.set_auth_cookies = true;
     this.api_token = "";
     this.authorized_user = null;
@@ -2079,7 +2081,7 @@ class Eva {
             uri += "//" + loc.host + this.api_uri;
           }
         }
-        let ws_uri = `${uri}/ws?`;
+        let ws_uri = `${uri}${this.ws_uri}?`;
         if (block) {
           ws_uri += `_block=${block}&`;
         }
