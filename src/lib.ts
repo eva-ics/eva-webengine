@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.6";
+const eva_webengine_version = "0.8.7";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -64,6 +64,8 @@ enum StateProp {
 }
 
 const GLOBAL_BLOCK_NAME = ".";
+
+const ERR_REQUIRE_LOGGED_IN = "Not logged in";
 
 interface EvaConfig {
   engine?: EvaEngineConfig;
@@ -280,6 +282,14 @@ class EvaBulkRequest {
     let api_uri = `${this.eva.api_uri}/jrpc`;
     this.eva._debug("call_bulk", `${api_uri}`);
     return new Promise((resolve, reject) => {
+      if (this.eva.allow_logged_in_calls_only) {
+        if (!this.eva.logged_in) {
+          throw new EvaError(
+            EvaErrorKind.ACCESS_DENIED,
+            ERR_REQUIRE_LOGGED_IN
+          );
+        }
+      }
       this.eva.external
         .fetch(api_uri, {
           method: "POST",
@@ -668,6 +678,7 @@ class Eva {
   authorized_user: string | null;
   clear_unavailable: boolean;
   debug: boolean | number;
+  allow_logged_in_calls_only: boolean;
   external: External;
   evajw: any;
   in_evaHI: boolean;
@@ -725,6 +736,7 @@ class Eva {
     this.authorized_user = null;
     this.logged_in = false;
     this.debug = false;
+    this.allow_logged_in_calls_only = false;
     this.state_updates = true;
     this.wasm = false;
     this.clear_unavailable = false;
@@ -1188,6 +1200,14 @@ class Eva {
     p1?: object | string | Array<string>,
     p2?: object
   ): Promise<any> {
+    if (this.allow_logged_in_calls_only) {
+      if (!this.logged_in) {
+        throw new EvaError(
+          EvaErrorKind.ACCESS_DENIED,
+          ERR_REQUIRE_LOGGED_IN
+        );
+      }
+    }
     let params;
     if (typeof p1 === "string" || Array.isArray(p1)) {
       params = (p2 as any) || {};

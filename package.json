@@ -1,6 +1,6 @@
 {
   "name": "@eva-ics/webengine",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "EVA ICS HMI Web Engine",
   "type": "module",
   "scripts": {
