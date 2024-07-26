@@ -290,6 +290,10 @@ class EvaBulkRequest {
           );
         }
       }
+      if (this.payload.length == 0) {
+        resolve(true);
+        return;
+      }
       this.eva.external
         .fetch(api_uri, {
           method: "POST",
