@@ -1,7 +1,10 @@
-const eva_webengine_version = "0.8.8";
+const eva_webengine_version = "0.8.9";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
+
+const WILDCARDS = ["*", "#"];
+const MATCH_ANY = ["+", "?"];
 
 enum EvaErrorKind {
   NOT_FOUND = -32001,
@@ -284,10 +287,7 @@ class EvaBulkRequest {
     return new Promise((resolve, reject) => {
       if (this.eva.allow_logged_in_calls_only) {
         if (!this.eva.logged_in) {
-          throw new EvaError(
-            EvaErrorKind.ACCESS_DENIED,
-            ERR_REQUIRE_LOGGED_IN
-          );
+          throw new EvaError(EvaErrorKind.ACCESS_DENIED, ERR_REQUIRE_LOGGED_IN);
         }
       }
       if (this.payload.length == 0) {
@@ -1206,10 +1206,7 @@ class Eva {
   ): Promise<any> {
     if (this.allow_logged_in_calls_only) {
       if (!this.logged_in) {
-        throw new EvaError(
-          EvaErrorKind.ACCESS_DENIED,
-          ERR_REQUIRE_LOGGED_IN
-        );
+        throw new EvaError(EvaErrorKind.ACCESS_DENIED, ERR_REQUIRE_LOGGED_IN);
       }
     }
     let params;
@@ -1328,9 +1325,10 @@ class Eva {
    * first state load).
    *
    * If state is already loaded, function will be called immediately. One item
-   * (or item mask, set with "*") can have multiple watchers.
+   * (or item mask, set with "*" or a traditional OID mask) can have multiple
+   * watchers.
    *
-   * @param oid {string} item oid (e.g. sensor:env/temp1, or sensor:env/\*)
+   * @param oid {string} item oid (e.g. sensor:env/temp1, sensor:env/\*, sensor:+/temp1)
    * @param func {function} function to be called
    * @param ignore_initial {boolean} skip initial state callback
    * @param prot {boolean} protected (not removed on global unwatch)
@@ -1446,7 +1444,7 @@ class Eva {
    * If item oid or function is not specified, all watching functions are
    * removed for a single oid (mask) or for all the items watched.
    *
-   * @param oid {string} item oid (e.g. sensor:env/temp1, or sensor:env/\*)
+   * @param oid {string} item OID or a mask
    * @param func {function} function to be removed
    */
   unwatch(oid?: string, func?: (state: ItemState) => void) {
@@ -1554,15 +1552,27 @@ class Eva {
   /**
    * Get item state
    *
-   * @param oid {string} item OID
+   * @param oid {string} item OID or OID mask
    *
    * @returns state object or undefined if no item found
    */
   state(oid: string): ItemState | Array<ItemState> | undefined {
-    if (!oid.includes("*")) {
-      return this._state(oid);
-    } else {
-      return this._states_by_mask(oid);
+    enum StateSelectKind {
+      Single,
+      Mask
+    }
+    let state_select_kind = StateSelectKind.Single;
+    for (let c of oid) {
+      if (WILDCARDS.includes(c) || MATCH_ANY.includes(c)) {
+        state_select_kind = StateSelectKind.Mask;
+        break;
+      }
+    }
+    switch (state_select_kind) {
+      case StateSelectKind.Single:
+        return this._state(oid);
+      case StateSelectKind.Mask:
+        return this._states_by_mask(oid);
     }
   }
 
@@ -1576,6 +1586,19 @@ class Eva {
 
   // WASM override
   _states_by_mask(oid_mask: string): Array<ItemState> {
+    let result: Array<ItemState> = [];
+    for (let [_, st] of this._states) {
+      st.forEach((v, k) => {
+        if (this._oid_match(k, oid_mask)) {
+          result.push(v);
+        }
+      });
+    }
+    return result;
+  }
+
+  // WASM override, legacy
+  _states_by_mask_pattern(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
     for (let [_, st] of this._states) {
       st.forEach((v, k) => {
@@ -2314,7 +2337,36 @@ class Eva {
   }
 
   _oid_match(oid: string, mask: string): boolean {
-    return new RegExp("^" + mask.split("*").join(".*") + "$").test(oid);
+    if (WILDCARDS.includes(mask)) {
+      return true;
+    }
+    let [kind, fullId] = oid.split(":");
+    if (!fullId) {
+      this.log.error(`Invalid OID: ${oid}`);
+      return false;
+    }
+    let [maskKind, maskFullId] = mask.split(":");
+    if (!maskFullId) {
+      this.log.error(`Invalid OID mask: ${mask}`);
+      return false;
+    }
+    if (!MATCH_ANY.includes(maskKind) && maskKind !== kind) {
+      return false;
+    }
+    let maskParts = maskFullId.split("/");
+    for (let chunk of fullId.split("/")) {
+      let maskChunk = maskParts.shift();
+      if (!maskChunk) {
+        return false;
+      }
+      if (WILDCARDS.includes(maskChunk)) {
+        return true;
+      }
+      if (!MATCH_ANY.includes(maskChunk) && maskChunk !== chunk) {
+        return false;
+      }
+    }
+    return maskParts.length === 0;
   }
 
   _debug(method: string, ...data: any[]) {
