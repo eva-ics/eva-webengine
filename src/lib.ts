@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.14";
+const eva_webengine_version = "0.8.15";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1767,6 +1767,7 @@ class Eva {
   }
 
   _clear_last_pings() {
+    this._last_ping.set(GLOBAL_BLOCK_NAME, null);
     for (let [k, _] of this._blocks) {
       this._last_ping.set(k, null);
       this._last_pong.set(k, null);
