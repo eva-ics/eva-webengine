@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.10";
+const eva_webengine_version = "0.8.11";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
