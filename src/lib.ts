@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.9";
+const eva_webengine_version = "0.8.10";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1835,7 +1835,7 @@ class Eva {
         })
         .then((response: any) => {
           if (response.ok) {
-            this._debug(method, `api call ${id}  success`);
+            this._debug(method, `api call ${id} completed`);
             response
               .json()
               .then((data: JsonRpcResponse) => {
@@ -1941,6 +1941,9 @@ class Eva {
         })
         .catch((err: EvaError) => {
           this._debug("heartbeat", "error: unable to send test API call");
+          if (err.code = -32002) {
+            this.api_token = "";
+          }
           this._invoke_handler(EventKind.HeartbeatError, err);
         });
       this._debug("heartbeat", "ok");
