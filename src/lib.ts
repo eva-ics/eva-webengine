@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.11";
+const eva_webengine_version = "0.8.12";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1898,7 +1898,7 @@ class Eva {
               if (
                 last_pong === null ||
                 last_ping - last_pong >
-                  (this._intervals.get(IntervalKind.Heartbeat) as number)
+                  (this._intervals.get(IntervalKind.Heartbeat) as number) * 2
               ) {
                 this._debug(
                   "heartbeat",
@@ -1914,23 +1914,23 @@ class Eva {
               }
             }
           }
-          for (let [k, ws] of this.ws) {
-            if (ws && ws?.readyState >= 1) {
-              this._last_ping.set(k, Date.now() / 1000);
-              try {
-                this._debug(
-                  `block ${k || GLOBAL_BLOCK_NAME} heartbeat`,
-                  "ws ping"
-                );
-                let payload = { m: "ping" };
-                ws.send(JSON.stringify(payload));
-                ws.send("");
-              } catch (err) {
-                this._debug("heartbeat", "error: unable to send ws ping");
-                this._invoke_handler(EventKind.HeartbeatError, err);
-                reject();
-                return;
-              }
+        }
+        for (let [k, ws] of this.ws) {
+          if (ws && ws?.readyState >= 1) {
+            this._last_ping.set(k, Date.now() / 1000);
+            try {
+              this._debug(
+                `block ${k || GLOBAL_BLOCK_NAME} heartbeat`,
+                "ws ping"
+              );
+              let payload = { m: "ping" };
+              ws.send(JSON.stringify(payload));
+              ws.send("");
+            } catch (err) {
+              this._debug("heartbeat", "error: unable to send ws ping");
+              this._invoke_handler(EventKind.HeartbeatError, err);
+              reject();
+              return;
             }
           }
         }
