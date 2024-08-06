@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.12";
+const eva_webengine_version = "0.8.13";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1946,6 +1946,7 @@ class Eva {
           this._debug("heartbeat", "error: unable to send test API call");
           if ((err.code = -32002)) {
             this.api_token = "";
+            this.erase_token_cookie();
           }
           this._invoke_handler(EventKind.HeartbeatError, err);
         });
