@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.15";
+const eva_webengine_version = "0.8.16";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -2151,6 +2151,9 @@ class Eva {
         };
         ws.addEventListener("open", () => {
           this._debug("_start_ws", "ws connected");
+          let payload = { m: "ping" };
+          ws.send(JSON.stringify(payload));
+          ws.send("");
           if (state_updates) {
             let st: WsCommand = {
               m: "subscribe.state"
