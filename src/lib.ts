@@ -1891,26 +1891,29 @@ class Eva {
         this._clear_last_pings();
       }
       if (this.ws_mode) {
-        for (let [k, last_ping] of this._last_ping) {
-          if (last_ping) {
-            const last_pong = this._last_pong.get(k) || null;
-            if (
-              last_pong === null ||
-              last_ping - last_pong >
-                (this._intervals.get(IntervalKind.Heartbeat) as number)
-            ) {
-              this._debug(
-                "heartbeat",
-                `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`
-              );
-              const err = new EvaError(EvaErrorKind.TIMEOUT, "WS ping timeout");
-              this._invoke_handler(EventKind.HeartbeatError, err);
-              reject(err);
-              return;
+        if (!on_login) {
+          for (let [k, last_ping] of this._last_ping) {
+            if (last_ping) {
+              const last_pong = this._last_pong.get(k) || null;
+              if (
+                last_pong === null ||
+                last_ping - last_pong >
+                  (this._intervals.get(IntervalKind.Heartbeat) as number)
+              ) {
+                this._debug(
+                  "heartbeat",
+                  `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`
+                );
+                const err = new EvaError(
+                  EvaErrorKind.TIMEOUT,
+                  "WS ping timeout"
+                );
+                this._invoke_handler(EventKind.HeartbeatError, err);
+                reject(err);
+                return;
+              }
             }
           }
-        }
-        if (!on_login) {
           for (let [k, ws] of this.ws) {
             if (ws && ws?.readyState >= 1) {
               this._last_ping.set(k, Date.now() / 1000);
@@ -1941,7 +1944,7 @@ class Eva {
         })
         .catch((err: EvaError) => {
           this._debug("heartbeat", "error: unable to send test API call");
-          if (err.code = -32002) {
+          if ((err.code = -32002)) {
             this.api_token = "";
           }
           this._invoke_handler(EventKind.HeartbeatError, err);
