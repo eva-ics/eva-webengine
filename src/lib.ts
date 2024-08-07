@@ -827,26 +827,50 @@ class Eva {
     }
   }
 
+  /**
+   * Set engine login credentials
+   *
+   * @param login {string|null} login
+   * @param password {string|null} password
+   */
   set_login_password(login?: string | null, password?: string | null) {
     this.login = login || "";
     this.#password = password || "";
     this.#apikey = "";
   }
 
-  set_api_key(apikey: string | null) {
+  /**
+   * Set/clear engine API key
+   *
+   * @param apikey {string | null} API key
+   */
+  set_api_key(apikey?: string | null) {
     this.#apikey = apikey || "";
     this.login = "";
     this.#password = "";
   }
 
+  /**
+   * Is engine password set
+   *
+   * @returns true if password is set
+   */
   is_password_set() {
     return this.#password !== "";
   }
 
-  is_auth_set() {
+  /**
+   * Is engine authentication set
+   *
+   * @returns true if auth is set
+   */
+  is_auth_set(): boolean {
     return this.#apikey !== "" || (this.login !== "" && this.#password !== "");
   }
 
+  /**
+   * Clear engine authenication credentials
+   */
   clear_auth() {
     this.login = "";
     this.#password = "";
