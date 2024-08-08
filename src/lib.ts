@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.8.16";
+const eva_webengine_version = "0.9.1";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -677,7 +677,7 @@ class Eva {
   api_uri: string;
   ws_uri: string;
   #apikey: string;
-  #api_token: string;
+  api_token: string;
   //api_version: number | null;
   authorized_user: string | null;
   clear_unavailable: boolean;
@@ -736,7 +736,7 @@ class Eva {
     this.api_uri = "";
     this.ws_uri = "/ws";
     this.set_auth_cookies = true;
-    this.#api_token = "";
+    this.api_token = "";
     this.authorized_user = null;
     this.logged_in = false;
     this.debug = false;
@@ -982,15 +982,15 @@ class Eva {
       this._debug("start", "logging in with API key");
     } else if (this.#password) {
       q = { u: this.login, p: this.#password };
-      if (this.#api_token) {
-        q.a = this.#api_token;
+      if (this.api_token) {
+        q.a = this.api_token;
       }
       if (this.login_xopts) {
         q.xopts = this.login_xopts;
       }
       this._debug("start", "logging in with password");
-    } else if (this.#api_token) {
-      q = { a: this.#api_token };
+    } else if (this.api_token) {
+      q = { a: this.api_token };
       this._debug("start", "logging in with existing auth token");
     } else if (this.set_auth_cookies) {
       let token = cookies.read("auth");
@@ -1005,7 +1005,7 @@ class Eva {
     let user: string;
     this._api_call("login", q)
       .then((data) => {
-        this.#api_token = data.token;
+        this.api_token = data.token;
         user = data.user;
         this._set_token_cookie();
         //if (!this.api_version) {
@@ -1191,7 +1191,7 @@ class Eva {
    * prevent old token caching
    */
   erase_token_cookie() {
-    this.#api_token = "";
+    this.api_token = "";
     this.authorized_user = null;
     this._set_token_cookie();
   }
@@ -1306,7 +1306,7 @@ class Eva {
     } else {
       q = { u: user, p: password };
     }
-    q.a = this.#api_token;
+    q.a = this.api_token;
     if (xopts !== undefined) {
       q.xopts = xopts;
     }
@@ -1676,12 +1676,12 @@ class Eva {
       this.logged_in = false;
       if (keep_auth) {
         resolve();
-      } else if (this.#api_token) {
-        let token = this.#api_token;
+      } else if (this.api_token) {
+        let token = this.api_token;
         this.erase_token_cookie();
         this._api_call("logout", { a: token })
           .then(() => {
-            this.#api_token = "";
+            this.api_token = "";
             resolve();
           })
           .catch(function (err) {
@@ -2076,8 +2076,8 @@ class Eva {
 
   _prepare_call_params(params?: any): object {
     let p = params || {};
-    if (this.#api_token) {
-      p.k = this.#api_token;
+    if (this.api_token) {
+      p.k = this.api_token;
     }
     return p;
   }
@@ -2092,7 +2092,7 @@ class Eva {
       ].map(
         (uri) =>
           (document.cookie = `auth=${
-            this.#api_token
+            this.api_token
           }; Path=${uri}; SameSite=Lax`),
         this
       );
@@ -2191,7 +2191,7 @@ class Eva {
         if (block) {
           ws_uri += `_block=${block}&`;
         }
-        ws_uri += `k=${this.#api_token}`;
+        ws_uri += `k=${this.api_token}`;
         let ws_buf_ttl = this._intervals.get(IntervalKind.WSBufTTL) as number;
         if (ws_buf_ttl > 0) {
           ws_uri += `&buf_ttl=${ws_buf_ttl}`;
