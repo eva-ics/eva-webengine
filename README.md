@@ -8,7 +8,7 @@ Technical documentation: <https://info.bma.ai/en/actual/eva-webengine/index.html
 
 ## Migration to 0.9
 
-* The engine fields `password`, `api_token` and `apikey` are now private, which
+* The engine fields `password` and `apikey` are now private, which
   allows to register global variables with less security risks.
 
 * To set authentication credentials, use the corresponding methods of the
