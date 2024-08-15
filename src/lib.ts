@@ -1628,35 +1628,37 @@ class Eva {
 
   // WASM override
   _state(oid: string) {
-    for (let [_, v] of this._states) {
+    for (let [k, v] of this._states) {
+      if (k == GLOBAL_BLOCK_NAME) continue;
       const state = v.get(oid);
       if (state !== undefined) return state;
     }
+    this._states.get(GLOBAL_BLOCK_NAME)?.get(oid);
   }
 
   // WASM override
   _states_by_mask(oid_mask: string): Array<ItemState> {
     let result: Array<ItemState> = [];
-    for (let [_, st] of this._states) {
-      st.forEach((v, k) => {
-        if (this._oid_match(k, oid_mask)) {
-          result.push(v);
+    let oids = new Set<string>();
+    for (let [k, st] of this._states) {
+      if (k == GLOBAL_BLOCK_NAME) continue;
+      st.forEach((v, oid) => {
+        if (this._oid_match(oid, oid_mask)) {
+          if (!oids.has(oid)) {
+            result.push(v);
+            oids.add(oid);
+          }
         }
       });
     }
-    return result;
-  }
-
-  // WASM override, legacy
-  _states_by_mask_pattern(oid_mask: string): Array<ItemState> {
-    let result: Array<ItemState> = [];
-    for (let [_, st] of this._states) {
-      st.forEach((v, k) => {
-        if (oid_mask == "*" || this._oid_match(k, oid_mask)) {
+    this._states.get(GLOBAL_BLOCK_NAME)?.forEach((v, oid) => {
+      if (this._oid_match(oid, oid_mask)) {
+        if (!oids.has(oid)) {
           result.push(v);
+          oids.add(oid);
         }
-      });
-    }
+      }
+    });
     return result;
   }
 
@@ -2091,9 +2093,7 @@ class Eva {
         this.api_uri + "/upload"
       ].map(
         (uri) =>
-          (document.cookie = `auth=${
-            this.api_token
-          }; Path=${uri}; SameSite=Lax`),
+          (document.cookie = `auth=${this.api_token}; Path=${uri}; SameSite=Lax`),
         this
       );
     }
