@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.2";
+const eva_webengine_version = "0.9.3";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -57,7 +57,8 @@ enum EventKind {
   ServerReload = "server.reload",
   ServerRestart = "server.restart",
   LogRecord = "log.record",
-  LogPostProcess = "log.postprocess"
+  LogPostProcess = "log.postprocess",
+  WASMError = "wasm.error"
 }
 
 enum StateProp {
@@ -638,9 +639,12 @@ class _EvaStateBlock {
           }, reload * 1000);
         }
       } else {
-        this._ajax_reloader = setInterval(() => {
-          this.eva._load_states(this.state_updates, this.name);
-        }, this.eva._intervals.get(IntervalKind.AjaxReload) as number);
+        this._ajax_reloader = setInterval(
+          () => {
+            this.eva._load_states(this.state_updates, this.name);
+          },
+          this.eva._intervals.get(IntervalKind.AjaxReload) as number
+        );
       }
     });
   }
@@ -771,6 +775,10 @@ class Eva {
     this._update_state_mask_functions = new Map();
     this._handlers = new Map();
     this._handlers.set(EventKind.HeartbeatError, this.restart);
+    this._handlers.set(EventKind.WASMError, (e) => {
+      this.log.error(e);
+      this._critical("WASM load error", true, true);
+    });
     this._states = new Map();
     this._states.set(GLOBAL_BLOCK_NAME, new Map());
     this._blocks = new Map();
@@ -1029,11 +1037,14 @@ class Eva {
           if (this._ajax_reloader) {
             clearInterval(this._ajax_reloader);
           }
-          this._ajax_reloader = setInterval(() => {
-            this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
-              () => {}
-            );
-          }, (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000);
+          this._ajax_reloader = setInterval(
+            () => {
+              this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
+                () => {}
+              );
+            },
+            (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000
+          );
         } else {
           if (this._ajax_reloader) {
             clearInterval(this._ajax_reloader);
@@ -1050,9 +1061,12 @@ class Eva {
         if (this._heartbeat_reloader) {
           clearInterval(this._heartbeat_reloader);
         }
-        this._heartbeat_reloader = setInterval(() => {
-          this._heartbeat(false).catch(() => {});
-        }, (this._intervals.get(IntervalKind.Heartbeat) as number) * 1000);
+        this._heartbeat_reloader = setInterval(
+          () => {
+            this._heartbeat(false).catch(() => {});
+          },
+          (this._intervals.get(IntervalKind.Heartbeat) as number) * 1000
+        );
         this._debug("start", `login successful, user: ${user}`);
         this.logged_in = true;
         this.authorized_user = user;
@@ -1112,9 +1126,12 @@ class Eva {
       this._log_loaded = false;
       this._load_log_entries(true);
       if (!this.ws_mode) {
-        this._log_reloader = setInterval(() => {
-          this._load_log_entries(false);
-        }, (this._intervals.get(IntervalKind.AjaxLogReload) as number) * 1000);
+        this._log_reloader = setInterval(
+          () => {
+            this._load_log_entries(false);
+          },
+          (this._intervals.get(IntervalKind.AjaxLogReload) as number) * 1000
+        );
       }
     }
   }
@@ -1779,7 +1796,7 @@ class Eva {
     this.evajw = undefined;
     const js_path = this.wasm === true ? "./evajw/evajw.js" : this.wasm;
     eval(
-      `import("${js_path}?" + new Date().getTime()).catch((e)=>{this._critical("WASM module not found",1,0);this._critical(e)}).then((m)=>{this._inject_evajw(m)})`
+      `import("${js_path}?" + new Date().getTime()).catch((e)=>{this._invoke_handler("wasm.error", e);this._start_engine()}).then((m)=>{this._inject_evajw(m)})`
     );
   }
 
@@ -2030,9 +2047,12 @@ class Eva {
   }
 
   _schedule_restart() {
-    this._scheduled_restarter = setTimeout(() => {
-      this.start();
-    }, (this._intervals.get(IntervalKind.Restart) as number) * 1000);
+    this._scheduled_restarter = setTimeout(
+      () => {
+        this.start();
+      },
+      (this._intervals.get(IntervalKind.Restart) as number) * 1000
+    );
   }
 
   _cancel_scheduled_restart() {
@@ -2391,8 +2411,11 @@ class Eva {
     if (f) {
       this._debug("invoke_handler", "invoking for " + handler);
       try {
-        f.apply(this, args);
+        return f.apply(this, args);
       } catch (err) {
+        if (handler === EventKind.WASMError) {
+          throw err;
+        }
         this.log.error(`handler for ${handler}:`, err);
       }
     }
