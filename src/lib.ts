@@ -1,10 +1,19 @@
-const eva_webengine_version = "0.9.3";
+const eva_webengine_version = "0.9.4";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
 
 const WILDCARDS = ["*", "#"];
 const MATCH_ANY = ["+", "?"];
+
+const isMask = (oid: string): boolean => {
+  for (let c of oid) {
+    if (WILDCARDS.includes(c) || MATCH_ANY.includes(c)) {
+      return true;
+    }
+  }
+  return false;
+};
 
 enum EvaErrorKind {
   NOT_FOUND = -32001,
@@ -1408,7 +1417,7 @@ class Eva {
     ignore_initial = false,
     prot = false
   ) {
-    if (oid.includes("*")) {
+    if (isMask(oid)) {
       let map = this._update_state_mask_functions;
       let fcs = map?.get(oid);
       if (fcs === undefined) {
@@ -1517,7 +1526,7 @@ class Eva {
   unwatch(oid?: string, func?: (state: ItemState) => void) {
     if (!oid) {
       this._clear_watchers();
-    } else if (!oid.includes("*")) {
+    } else if (!isMask(oid)) {
       if (func) {
         this._unwatch_func(oid, func);
       } else {
