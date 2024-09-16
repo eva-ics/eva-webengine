@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.4";
+const eva_webengine_version = "0.9.5";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1092,7 +1092,12 @@ class Eva {
         }
         this._debug("start", `login failed: ${err.code} (${err.message})`);
         this._stop_engine();
-        this.erase_token_cookie();
+        if (
+          err.code != EvaErrorKind.CORE_ERROR ||
+          err.message != "Server error"
+        ) {
+          this.erase_token_cookie();
+        }
         this.error_handler(err, "login");
       });
     return true;
