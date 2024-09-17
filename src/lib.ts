@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.5";
+const eva_webengine_version = "0.9.6a";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -997,6 +997,9 @@ class Eva {
         q.xopts = this.login_xopts;
       }
       this._debug("start", "logging in with API key");
+    } else if (this.api_token) {
+      q = { a: this.api_token };
+      this._debug("start", "logging in with existing auth token");
     } else if (this.#password) {
       q = { u: this.login, p: this.#password };
       if (this.api_token) {
@@ -1006,9 +1009,6 @@ class Eva {
         q.xopts = this.login_xopts;
       }
       this._debug("start", "logging in with password");
-    } else if (this.api_token) {
-      q = { a: this.api_token };
-      this._debug("start", "logging in with existing auth token");
     } else if (this.set_auth_cookies) {
       let token = cookies.read("auth");
       if (token) {
