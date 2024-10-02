@@ -1664,7 +1664,7 @@ class Eva {
       const state = v.get(oid);
       if (state !== undefined) return state;
     }
-    this._states.get(GLOBAL_BLOCK_NAME)?.get(oid);
+    return this._states.get(GLOBAL_BLOCK_NAME)?.get(oid);
   }
 
   // WASM override
