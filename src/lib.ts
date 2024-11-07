@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.7";
+const eva_webengine_version = "0.9.8";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -2114,6 +2114,8 @@ class Eva {
     let p = params || {};
     if (this.api_token) {
       p.k = this.api_token;
+    } else if (this.#apikey) {
+      p.k = this.#apikey;
     }
     return p;
   }
