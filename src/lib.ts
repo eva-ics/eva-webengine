@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.8";
+const eva_webengine_version = "0.9.9";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -713,6 +713,7 @@ class Eva {
   wasm: boolean | string;
   ws_mode: boolean;
   server_info: any;
+  ignore_password_set_on_next_login: boolean;
   _api_call_id: number;
   _handlers: Map<EventKind, (...args: any[]) => void | boolean>;
   _intervals: Map<IntervalKind, number>;
@@ -752,6 +753,7 @@ class Eva {
     this.api_token = "";
     this.authorized_user = null;
     this.logged_in = false;
+    this.ignore_password_set_on_next_login = false;
     this.debug = false;
     this.allow_logged_in_calls_only = false;
     this.state_updates = true;
@@ -1000,7 +1002,7 @@ class Eva {
     } else if (this.api_token) {
       q = { a: this.api_token };
       this._debug("start", "logging in with existing auth token");
-    } else if (this.#password) {
+    } else if (this.#password && !this.ignore_password_set_on_next_login) {
       q = { u: this.login, p: this.#password };
       if (this.api_token) {
         q.a = this.api_token;
@@ -1020,6 +1022,7 @@ class Eva {
       this._debug("start", "logging in without credentials");
     }
     let user: string;
+    this.ignore_password_set_on_next_login = false;
     this._api_call("login", q)
       .then((data) => {
         this.api_token = data.token;
