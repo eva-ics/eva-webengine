@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.9";
+const eva_webengine_version = "0.9.10";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -1245,31 +1245,39 @@ class Eva {
         .fetch(cpath)
         .then((res: any) => res.json())
         .then((config: EvaConfig) => {
-          const ec = config.engine;
-          if (ec) {
-            if (ec.api_uri) this.api_uri = ec.api_uri;
-            if (ec.apikey) this.#apikey = ec.apikey;
-            if (ec.debug !== undefined) this.debug = ec.debug;
-            if (ec.login) this.login = ec.login;
-            if (ec.password) this.#password = ec.password;
-            if (ec.set_auth_cookies !== undefined)
-              this.set_auth_cookies = ec.set_auth_cookies;
-            if (ec.state_updates !== undefined)
-              this.state_updates = ec.state_updates;
-            if (ec.wasm !== undefined) this.wasm = ec.wasm;
-            if (ec.ws_mode !== undefined) this.ws_mode = ec.ws_mode;
-            if (ec.log_params) this.log_params = ec.log_params;
-            if (ec.interval) {
-              Object.keys(ec.interval).forEach((k) => {
-                const key = k as IntervalKind;
-                this.set_interval(key, ec.interval[key]);
-              });
-            }
-          }
+          this.apply_config(config);
           resolve(config);
         })
         .catch((err: any) => reject(err));
     });
+  }
+
+  /**
+   * Apply configuration from an object
+   *
+   * @param config {object} configuration object
+   */
+  apply_config(config: EvaConfig) {
+    const ec = config.engine;
+    if (ec) {
+      if (ec.api_uri) this.api_uri = ec.api_uri;
+      if (ec.apikey) this.#apikey = ec.apikey;
+      if (ec.debug !== undefined) this.debug = ec.debug;
+      if (ec.login) this.login = ec.login;
+      if (ec.password) this.#password = ec.password;
+      if (ec.set_auth_cookies !== undefined)
+        this.set_auth_cookies = ec.set_auth_cookies;
+      if (ec.state_updates !== undefined) this.state_updates = ec.state_updates;
+      if (ec.wasm !== undefined) this.wasm = ec.wasm;
+      if (ec.ws_mode !== undefined) this.ws_mode = ec.ws_mode;
+      if (ec.log_params) this.log_params = ec.log_params;
+      if (ec.interval) {
+        Object.keys(ec.interval).forEach((k) => {
+          const key = k as IntervalKind;
+          this.set_interval(key, ec.interval[key]);
+        });
+      }
+    }
   }
 
   /**
