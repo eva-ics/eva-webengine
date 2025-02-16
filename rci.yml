@@ -1,6 +1,6 @@
 git:
-  url: https://github.com/alttch/eva-js-framework/
-  branch: master
+  url: https://github.com/eva-ics/eva-webengine
+  branch: main
 secret: null
 commands:
   build: |
@@ -8,8 +8,8 @@ commands:
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     nvm install v18.16.0
     nvm use v18.16.0
-    npm config set fund false
-    npm run build
+    bun install
+    bun run build
   test: null
   release: |
     export NVM_DIR="$HOME/.nvm"
