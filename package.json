@@ -45,5 +45,8 @@
   "devDependencies": {
     "typescript": "^5.1.3",
     "vite": "^4.3.9"
+  },
+  "dependencies": {
+    "submap": "^0.1.0"
   }
 }
