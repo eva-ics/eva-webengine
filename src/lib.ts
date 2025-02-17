@@ -2,6 +2,7 @@ const eva_webengine_version = "0.9.10";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
+import { SubMap } from "submap";
 
 const WILDCARDS = ["*", "#"];
 const MATCH_ANY = ["+", "?"];
@@ -684,6 +685,49 @@ class _EvaStateBlock {
   }
 }
 
+export enum LoginState {
+  Active = "active",
+  Inactive = "inactive",
+  Failed = "failed",
+  OTPRequired = "otp.required",
+  OTPInvalid = "otp.invalid",
+  OTPSetup = "otp.setup"
+}
+
+export interface SessionState {
+  login: LoginState;
+  error: EvaError | null;
+  otp: string | null;
+}
+
+export const defaultSessionState = (): SessionState => {
+  return {
+    login: LoginState.Inactive,
+    error: null,
+    otp: null
+  };
+}
+
+export type EventHandler = (topic: string, event: any) => void;
+
+export enum EventTopic {
+  ItemState = "ST",
+  Server = "SERVER",
+  Supervisor = "SUPERVISOR",
+  WeSession = "WE/SESSION",
+  WeItemState = "WE/ST"
+}
+
+// Topics
+//
+// ST/OID (as path)
+// SERVER/# server events
+// SUPERVISOR/# supervisor events
+// WE/SESSION = SessionState
+// WE/ST (state updates)
+// WE/ST/BLOCK (state updates on init, null on delete)
+// WE/ST/BLOCK/OID (internal block state)
+
 class Eva {
   action: Eva_ACTION;
   lvar: Eva_LVAR;
@@ -714,6 +758,7 @@ class Eva {
   ws_mode: boolean;
   server_info: any;
   ignore_password_set_on_next_login: boolean;
+  _event_map: SubMap<EventHandler> | null;
   _api_call_id: number;
   _handlers: Map<EventKind, (...args: any[]) => void | boolean>;
   _intervals: Map<IntervalKind, number>;
@@ -774,6 +819,7 @@ class Eva {
     this._log_first_load = false;
     this._log_loaded = false;
     this._lr2p = [];
+    this._event_map = null;
     this.in_evaHI =
       typeof navigator !== "undefined" &&
       typeof navigator.userAgent === "string" &&
@@ -843,6 +889,54 @@ class Eva {
       this.external.QRious = (window as any).QRious;
     } else {
       this.external.QRious = null;
+    }
+  }
+
+  enable_event_map() {
+    if (this._event_map === null) {
+      this._event_map = (new SubMap() as SubMap<EventHandler>)
+        .matchAny(MATCH_ANY)
+        .wildcard(WILDCARDS).regexPrefix('~')
+        .separator("/");
+    }
+  }
+
+  subscribe_event_topic(topic: string, fn: EventHandler) {
+    this.enable_event_map();
+    this._event_map!.registerClient(fn);
+    this._event_map!.subscribe(topic, fn);
+  }
+
+  subscribe_event_topics(topics: Array<string>, fn: EventHandler): boolean {
+    this.enable_event_map();
+    this._event_map!.registerClient(fn);
+    for (let topic of topics) {
+      this._event_map!.subscribe(topic, fn);
+    }
+    return true;
+  }
+
+  unsubscribe_event_topic(topic: string, fn: EventHandler) {
+    this._event_map?.unsubscribe(topic, fn);
+  }
+
+  unsubscribe_event_topics(topics: Array<string>, fn: EventHandler) {
+    for (let topic of topics) {
+      this._event_map?.unsubscribe(topic, fn);
+    }
+  }
+
+  unsubscribe_all_event_topics(fn: EventHandler) {
+    this._event_map?.unsubscribeAll(fn);
+    this._event_map?.unregisterClient(fn);
+  }
+
+  _push_event_topic(topic: string, data: any) {
+    if (this._event_map) {
+      const clients = this._event_map.getSubscribers(topic);
+      for (const client of clients) {
+        client(topic, data);
+      }
     }
   }
 
@@ -923,6 +1017,7 @@ class Eva {
     }
     this._blocks.set(name, block);
     this._init_block(name);
+    this._push_event_topic(`${EventTopic.WeItemState}/${name}`, state_updates);
   }
 
   /**
@@ -936,6 +1031,7 @@ class Eva {
       block._stop();
       this._delete_block(name);
       this._blocks.delete(name);
+      this._push_event_topic(`${EventTopic.WeItemState}/${name}`, null);
     }
   }
 
@@ -946,6 +1042,7 @@ class Eva {
     for (let [name, block] of this._blocks) {
       block._stop();
       this._delete_block(name);
+      this._push_event_topic(`${EventTopic.WeItemState}/${name}`, null);
     }
     this._blocks.clear();
   }
@@ -1083,6 +1180,11 @@ class Eva {
         this.logged_in = true;
         this.authorized_user = user;
         this._invoke_handler(EventKind.LoginSuccess);
+        this._push_event_topic(EventTopic.WeSession, {
+          login: LoginState.Active,
+          error: null,
+          otp: null
+        });
         for (let [_, block] of this._blocks) {
           block._restart();
         }
@@ -1166,6 +1268,7 @@ class Eva {
   ) {
     check_state_updates(state_updates);
     this.state_updates = state_updates;
+    this._push_event_topic(EventTopic.WeItemState, state_updates);
     let ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws && ws.readyState === 1) {
       let st: WsCommand = { m: "unsubscribe.state" };
@@ -1267,7 +1370,10 @@ class Eva {
       if (ec.password) this.#password = ec.password;
       if (ec.set_auth_cookies !== undefined)
         this.set_auth_cookies = ec.set_auth_cookies;
-      if (ec.state_updates !== undefined) this.state_updates = ec.state_updates;
+      if (ec.state_updates !== undefined) {
+        this.state_updates = ec.state_updates;
+        this._push_event_topic(EventTopic.WeItemState, this.state_updates);
+      }
       if (ec.wasm !== undefined) this.wasm = ec.wasm;
       if (ec.ws_mode !== undefined) this.ws_mode = ec.ws_mode;
       if (ec.log_params) this.log_params = ec.log_params;
@@ -1356,6 +1462,11 @@ class Eva {
       .then(() => {
         this.server_info.aci.token_mode = "normal";
         this._invoke_handler(EventKind.LoginSuccess);
+        this._push_event_topic(EventTopic.WeSession, {
+          login: LoginState.Active,
+          error: null,
+          otp: null
+        });
       })
       .catch((err: EvaError) => {
         this.error_handler(err, "set_normal");
@@ -1371,17 +1482,37 @@ class Eva {
         switch (msg.message) {
           case "REQ":
             this._invoke_handler(EventKind.LoginOTPRequired, msg);
+            this._push_event_topic(EventTopic.WeSession, {
+              login: LoginState.OTPRequired,
+              error: null,
+              otp: msg
+            });
             return;
           case "INVALID":
             this._invoke_handler(EventKind.LoginOTPInvalid, msg);
+            this._push_event_topic(EventTopic.WeSession, {
+              login: LoginState.OTPInvalid,
+              error: null,
+              otp: msg
+            });
             return;
           case "SETUP":
             this._invoke_handler(EventKind.LoginOTPSetup, msg);
+            this._push_event_topic(EventTopic.WeSession, {
+              login: LoginState.OTPSetup,
+              error: null,
+              otp: msg
+            });
             return;
         }
       }
     }
     this._invoke_handler(EventKind.LoginFailed, err);
+    this._push_event_topic(EventTopic.WeSession, {
+      login: LoginState.Failed,
+      error: err,
+      otp: null
+    });
   }
 
   /**
@@ -1718,6 +1849,11 @@ class Eva {
     return new Promise((resolve, reject) => {
       this._stop_engine();
       this.logged_in = false;
+      this._push_event_topic(EventTopic.WeSession, {
+        login: LoginState.Inactive,
+        error: null,
+        otp: null
+      });
       if (keep_auth) {
         resolve();
       } else if (this.api_token) {
@@ -2314,17 +2450,23 @@ class Eva {
       if (data.s == "reload") {
         this._debug("ws", "reload");
         this._invoke_handler(EventKind.ServerReload);
+        this._push_event_topic(`${EventTopic.Server}/RELOAD`, true);
         return;
       }
       if (data.s == "server") {
         let ev = "server." + data.d;
         this._debug("ws", ev);
         this._invoke_handler(ev as EventKind);
+        this._push_event_topic(`${EventTopic.Server}/${data.d}`, true);
         return;
       }
       if (data.s.substring(0, 11) == "supervisor.") {
         this._debug("ws", data.s);
         this._invoke_handler(data.s, data.d);
+        this._push_event_topic(
+          `${EventTopic.Supervisor}/${data.s.substring(11)}`,
+          data.d
+        );
         return;
       }
       if (this._invoke_handler(EventKind.WsEvent, data) === false) return;
@@ -2406,6 +2548,12 @@ class Eva {
           `act: ${state.act} t: "${state.t}"`
         );
         map?.set(oid, state);
+        const oid_path = oid.replace(":", "/");
+        this._push_event_topic(`${EventTopic.ItemState}/${oid_path}`, state);
+        this._push_event_topic(
+          `${EventTopic.WeItemState}/${block}/${oid_path}`,
+          state
+        );
         let fcs = this._update_state_functions.get(oid);
         if (fcs) {
           fcs.map((f) => {
