@@ -2034,6 +2034,7 @@ class Eva {
 
   /// WASM override
   _delete_block_states(block: string) {
+    this._report_cleanup(block);
     this._states.delete(block);
   }
 
@@ -2070,11 +2071,38 @@ class Eva {
   }
 
   // WASM override
+  _report_cleanup(block: string) {
+    if (this._event_map === null) return;
+    for (const state of this._states.get(block)?.values() || []) {
+      if (!state.oid) continue;
+      // make sure the state is not in other blocks
+      let found = false;
+      for (const [k, v] of this._states) {
+        if (k == block) continue;
+        if (v.get(state.oid)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        const oid = state.oid.replace(":", "/");
+        this._push_event_topic(
+          `${EventTopic.WeItemState}/${block}/${oid}`,
+          null
+        );
+        this._push_event_topic(`${EventTopic.ItemState}/${oid}/`, null);
+      }
+    }
+  }
+
+  // WASM override
   _clear_states(block?: string) {
     if (block !== undefined) {
+      this._report_cleanup(block);
       this._states.get(block)?.clear();
     } else {
-      for (let [_, v] of this._states) {
+      for (let [name, v] of this._states) {
+        this._report_cleanup(name);
         v.clear();
       }
     }
