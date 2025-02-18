@@ -2634,12 +2634,14 @@ class Eva {
           `act: ${state.act} t: "${state.t}"`
         );
         map?.set(oid, state);
-        const oid_path = oid.replace(":", "/");
-        this._push_event_topic(`${EventTopic.ItemState}/${oid_path}`, state);
-        this._push_event_topic(
-          `${EventTopic.WeItemState}/${block}/${oid_path}`,
-          state
-        );
+        if (this._event_map !== null) {
+          const oid_path = oid.replace(":", "/");
+          this._push_event_topic(`${EventTopic.ItemState}/${oid_path}`, state);
+          this._push_event_topic(
+            `${EventTopic.WeItemState}/${block}/${oid_path}`,
+            state
+          );
+        }
         let fcs = this._update_state_functions.get(oid);
         if (fcs) {
           fcs.map((f) => {
