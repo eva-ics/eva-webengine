@@ -685,7 +685,58 @@ class _EvaStateBlock {
   }
 }
 
-export enum LoginState {
+enum TokenMode {
+  Normal = "normal",
+  ReadOnly = "readonly"
+}
+
+interface SessionACI {
+  acl: string;
+  auth: string;
+  auth_svc: string;
+  token_mode: TokenMode;
+  u: string;
+}
+
+interface ACLProp {
+  items: Array<string>;
+  pvt: Array<string>;
+  rpvt: Array<string>;
+}
+
+enum ACLOp {
+  Log = "log",
+  Developer = "developer",
+  Moderator = "moderator",
+  Supervisor = "supervisor"
+}
+
+interface SessionACL {
+  admin?: boolean;
+  deny_read: ACLProp;
+  deny_write: ACLProp;
+  from: Array<string>;
+  id: string;
+  meta: { [key: string]: Array<any> };
+  ops: Array<ACLOp>;
+  read: ACLProp;
+  write: ACLProp;
+}
+
+interface ServerInfo {
+  aci: SessionACI;
+  acl: SessionACL;
+  build: number;
+  ok: boolean;
+  product_code: string;
+  product_name: string;
+  system_name: string;
+  time: number;
+  uptime: number;
+  version: string;
+}
+
+enum LoginState {
   Active = "active",
   Starting = "starting",
   Stopping = "stopping",
@@ -696,13 +747,13 @@ export enum LoginState {
   OTPSetup = "otp.setup"
 }
 
-export interface SessionState {
+interface SessionState {
   login: LoginState;
   error: EvaError | null;
   otp: string | null;
 }
 
-export const defaultSessionState = (): SessionState => {
+const defaultSessionState = (): SessionState => {
   return {
     login: LoginState.Inactive,
     error: null,
@@ -710,9 +761,9 @@ export const defaultSessionState = (): SessionState => {
   };
 };
 
-export type EventHandler = (topic: string, event: any) => void;
+type EventHandler = (topic: string, event: any) => void;
 
-export enum EventTopic {
+enum EventTopic {
   ItemState = "ST",
   Server = "SERVER",
   Supervisor = "SUPERVISOR",
@@ -1438,7 +1489,7 @@ class Eva {
     return new Promise((resolve, reject) => {
       this.call("session.set_readonly")
         .then(() => {
-          this.server_info.aci.token_mode = "readonly";
+          this.server_info.aci.token_mode = TokenMode.ReadOnly;
           this._push_event_topic(EventTopic.Server, this.server_info);
           resolve();
         })
@@ -1470,7 +1521,7 @@ class Eva {
     }
     this._api_call("login", q)
       .then(() => {
-        this.server_info.aci.token_mode = "normal";
+        this.server_info.aci.token_mode = TokenMode.Normal;
         this._invoke_handler(EventKind.LoginSuccess);
       })
       .catch((err: EvaError) => {
@@ -2830,6 +2881,17 @@ export {
   Eva,
   EvaError,
   EvaErrorKind,
+  TokenMode,
+  SessionACI,
+  ACLProp,
+  ACLOp,
+  SessionACL,
+  ServerInfo,
+  LoginState,
+  SessionState,
+  defaultSessionState,
+  EventHandler,
+  EventTopic,
   EventKind,
   IntervalKind,
   ActionResult,
