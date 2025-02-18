@@ -2085,12 +2085,18 @@ class Eva {
         }
       }
       if (!found) {
-        const oid = state.oid.replace(":", "/");
+        const oid_path = state.oid.replace(":", "/");
+        const ev = {
+          oid: state.oid,
+          ieid: null,
+          status: null,
+          value: null
+        };
         this._push_event_topic(
-          `${EventTopic.WeItemState}/${block}/${oid}`,
-          null
+          `${EventTopic.WeItemState}/${block}/${oid_path}`,
+          ev
         );
-        this._push_event_topic(`${EventTopic.ItemState}/${oid}/`, null);
+        this._push_event_topic(`${EventTopic.ItemState}/${oid_path}/`, ev);
       }
     }
   }
