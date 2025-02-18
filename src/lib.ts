@@ -687,6 +687,8 @@ class _EvaStateBlock {
 
 export enum LoginState {
   Active = "active",
+  Starting = "starting",
+  Stopping = "stopping",
   Inactive = "inactive",
   Failed = "failed",
   OTPRequired = "otp.required",
@@ -706,7 +708,7 @@ export const defaultSessionState = (): SessionState => {
     error: null,
     otp: null
   };
-}
+};
 
 export type EventHandler = (topic: string, event: any) => void;
 
@@ -721,7 +723,8 @@ export enum EventTopic {
 // Topics
 //
 // ST/OID (as path)
-// SERVER/# server events
+// SERVER = server info
+// SERVER/# server events (e.g. SERVER/RELOAD)
 // SUPERVISOR/# supervisor events
 // WE/SESSION = SessionState
 // WE/ST (state updates)
@@ -896,7 +899,8 @@ class Eva {
     if (this._event_map === null) {
       this._event_map = (new SubMap() as SubMap<EventHandler>)
         .matchAny(MATCH_ANY)
-        .wildcard(WILDCARDS).regexPrefix('~')
+        .wildcard(WILDCARDS)
+        .regexPrefix("~")
         .separator("/");
     }
   }
@@ -1088,6 +1092,11 @@ class Eva {
     }
   }
   _start_engine() {
+    this._push_event_topic(EventTopic.WeSession, {
+      login: LoginState.Starting,
+      error: null,
+      otp: null
+    });
     this._clear_last_pings();
     let q: LoginPayload = {};
     if (this.#apikey) {
@@ -1312,7 +1321,7 @@ class Eva {
   restart() {
     this._cancel_scheduled_restart();
     this._debug("restart", "performing restart");
-    this.stop(true)
+    this.stop(true, true)
       .then(() => {
         this._schedule_restart();
       })
@@ -1430,6 +1439,7 @@ class Eva {
       this.call("session.set_readonly")
         .then(() => {
           this.server_info.aci.token_mode = "readonly";
+          this._push_event_topic(EventTopic.Server, this.server_info);
           resolve();
         })
         .catch((err: any) => {
@@ -1462,11 +1472,6 @@ class Eva {
       .then(() => {
         this.server_info.aci.token_mode = "normal";
         this._invoke_handler(EventKind.LoginSuccess);
-        this._push_event_topic(EventTopic.WeSession, {
-          login: LoginState.Active,
-          error: null,
-          otp: null
-        });
       })
       .catch((err: EvaError) => {
         this.error_handler(err, "set_normal");
@@ -1508,11 +1513,14 @@ class Eva {
       }
     }
     this._invoke_handler(EventKind.LoginFailed, err);
-    this._push_event_topic(EventTopic.WeSession, {
-      login: LoginState.Failed,
-      error: err,
-      otp: null
-    });
+    if (method == "login") {
+      err.data = undefined;
+      this._push_event_topic(EventTopic.WeSession, {
+        login: LoginState.Failed,
+        error: err,
+        otp: null
+      });
+    }
   }
 
   /**
@@ -1845,16 +1853,24 @@ class Eva {
    *
    * @returns Promise object
    */
-  async stop(keep_auth?: boolean): Promise<void> {
+  async stop(keep_auth?: boolean, further_restart?: boolean): Promise<void> {
+    this._push_event_topic(EventTopic.WeSession, {
+      login: LoginState.Stopping,
+      error: null,
+      otp: null
+    });
+    const stop_ev = {
+      login: LoginState.Inactive,
+      error: null,
+      otp: null
+    };
     return new Promise((resolve, reject) => {
       this._stop_engine();
       this.logged_in = false;
-      this._push_event_topic(EventTopic.WeSession, {
-        login: LoginState.Inactive,
-        error: null,
-        otp: null
-      });
       if (keep_auth) {
+        if (!further_restart) {
+          this._push_event_topic(EventTopic.WeSession, stop_ev);
+        }
         resolve();
       } else if (this.api_token) {
         let token = this.api_token;
@@ -1862,12 +1878,21 @@ class Eva {
         this._api_call("logout", { a: token })
           .then(() => {
             this.api_token = "";
+            if (!further_restart) {
+              this._push_event_topic(EventTopic.WeSession, stop_ev);
+            }
             resolve();
           })
-          .catch(function (err) {
+          .catch((err) => {
+            if (!further_restart) {
+              this._push_event_topic(EventTopic.WeSession, stop_ev);
+            }
             reject(err);
           });
       } else {
+        if (!further_restart) {
+          this._push_event_topic(EventTopic.WeSession, stop_ev);
+        }
         resolve();
       }
     });
@@ -2008,6 +2033,7 @@ class Eva {
     this._clear_states();
     this._clear_last_pings();
     this.server_info = null;
+    this._push_event_topic(EventTopic.Server, this.server_info);
     this.tsdiff = 0;
     this._log_subscribed = false;
     this._log_first_load = true;
@@ -2169,6 +2195,7 @@ class Eva {
       this.call("test")
         .then((data: any) => {
           this.server_info = data;
+          this._push_event_topic(EventTopic.Server, this.server_info);
           this.tsdiff = new Date().getTime() / 1000 - data.time;
           this._invoke_handler(EventKind.HeartbeatSuccess);
           resolve();
