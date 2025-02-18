@@ -690,9 +690,17 @@ enum TokenMode {
   ReadOnly = "readonly"
 }
 
+enum SessionAuthKind {
+  Token = "token",
+  Key = "key",
+  // returned for "login" method only, after switched to "token"
+  Login = "login",
+  No = "unauthorized"
+}
+
 interface SessionACI {
   acl: string;
-  auth: string;
+  auth: SessionAuthKind;
   auth_svc: string;
   token_mode: TokenMode;
   u: string;
@@ -2882,6 +2890,7 @@ export {
   EvaError,
   EvaErrorKind,
   TokenMode,
+  SessionAuthKind,
   SessionACI,
   ACLProp,
   ACLOp,
