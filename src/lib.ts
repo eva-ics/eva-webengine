@@ -818,7 +818,7 @@ class Eva {
   version: string;
   wasm: boolean | string;
   ws_mode: boolean;
-  server_info: any;
+  server_info: ServerInfo | null;
   ignore_password_set_on_next_login: boolean;
   _event_map: SubMap<EventHandler> | null;
   _api_call_id: number;
@@ -1497,7 +1497,8 @@ class Eva {
     return new Promise((resolve, reject) => {
       this.call("session.set_readonly")
         .then(() => {
-          this.server_info.aci.token_mode = TokenMode.ReadOnly;
+          if (this.server_info)
+            this.server_info.aci.token_mode = TokenMode.ReadOnly;
           this._push_event_topic(EventTopic.Server, this.server_info);
           resolve();
         })
@@ -1529,7 +1530,8 @@ class Eva {
     }
     this._api_call("login", q)
       .then(() => {
-        this.server_info.aci.token_mode = TokenMode.Normal;
+        if (this.server_info)
+          this.server_info.aci.token_mode = TokenMode.Normal;
         this._invoke_handler(EventKind.LoginSuccess);
       })
       .catch((err: EvaError) => {
@@ -2285,7 +2287,7 @@ class Eva {
         }
       }
       this.call("test")
-        .then((data: any) => {
+        .then((data: ServerInfo) => {
           this.server_info = data;
           this._push_event_topic(EventTopic.Server, this.server_info);
           this.tsdiff = new Date().getTime() / 1000 - data.time;
