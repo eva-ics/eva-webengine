@@ -2086,9 +2086,8 @@ class Eva {
       }
       if (!found) {
         const oid_path = state.oid.replace(":", "/");
-        const ev = {
+        const ev: ItemState = {
           oid: state.oid,
-          ieid: null,
           status: null,
           value: null
         };
