@@ -1610,6 +1610,28 @@ class Eva {
     this._intervals.set(interval_id, value);
   }
 
+  /*
+   * Converts local date to server date
+   *
+   * @param date {Date} local date
+   *
+   * @returns {Date} server date
+   */
+  date_local_to_server(date: Date): Date {
+    return new Date(date.getTime() - this.tsdiff * 1000);
+  }
+
+  /*
+   * Converts server date to local date
+   *
+   * @param date {Date}
+   *
+   * @returns {Date}
+   */
+  date_server_to_local(date: Date): Date {
+    return new Date(date.getTime() + this.tsdiff * 1000);
+  }
+
   /**
    * Watch item state updates
    *
