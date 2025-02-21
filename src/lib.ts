@@ -2025,16 +2025,16 @@ class Eva {
         this._clear_state = mod.clear_state;
         this._init_block_states = mod.init_block_states;
         this.enable_event_map = mod.enable_event_map;
-        this._push_event_topic = mod.push_event_topic;
+        this.subscribe_event_topic = mod.subscribe_event_topic;
+        this.subscribe_event_topics = mod.subscribe_event_topics;
+        this.unsubscribe_event_topic = mod.unsubscribe_event_topic;
+        this.unsubscribe_all_event_topics = mod.unsubscribe_all_event_topics;
         if (this._event_map) {
           for (const [k, v] of this._event_map.subscribed_topics) {
             this.subscribe_event_topics(Array.from(v), k);
           }
         }
-        this.subscribe_event_topic = mod.subscribe_event_topic;
-        this.subscribe_event_topics = mod.subscribe_event_topics;
-        this.unsubscribe_event_topic = mod.unsubscribe_event_topic;
-        this.unsubscribe_all_event_topics = mod.unsubscribe_all_event_topics;
+        this._push_event_topic = mod.push_event_topic;
         for (const block of this._blocks.keys()) {
           this._delete_block_states(block);
           this._init_block_states(block);
