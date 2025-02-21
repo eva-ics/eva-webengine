@@ -954,22 +954,26 @@ class Eva {
     }
   }
 
+  // wasm override
   enable_event_map() {
     if (this._event_map === null) {
       this._event_map = (new SubMap() as SubMap<EventHandler>)
         .matchAny(MATCH_ANY)
         .wildcard(WILDCARDS)
-        .regexPrefix("~")
+        .regexPrefix("r~")
         .separator("/");
     }
   }
 
-  subscribe_event_topic(topic: string, fn: EventHandler) {
+  // wasm override
+  subscribe_event_topic(topic: string, fn: EventHandler): boolean {
     this.enable_event_map();
     this._event_map!.registerClient(fn);
     this._event_map!.subscribe(topic, fn);
+    return true;
   }
 
+  // wasm override
   subscribe_event_topics(topics: Array<string>, fn: EventHandler): boolean {
     this.enable_event_map();
     this._event_map!.registerClient(fn);
@@ -979,21 +983,25 @@ class Eva {
     return true;
   }
 
+  // wasm override
   unsubscribe_event_topic(topic: string, fn: EventHandler) {
     this._event_map?.unsubscribe(topic, fn);
   }
 
+  // wasm override
   unsubscribe_event_topics(topics: Array<string>, fn: EventHandler) {
     for (let topic of topics) {
       this._event_map?.unsubscribe(topic, fn);
     }
   }
 
+  // wasm override
   unsubscribe_all_event_topics(fn: EventHandler) {
     this._event_map?.unsubscribeAll(fn);
     this._event_map?.unregisterClient(fn);
   }
 
+  // WASM override
   _push_event_topic(topic: string, data: any) {
     if (this._event_map) {
       const clients = this._event_map.getSubscribers(topic);
@@ -2016,6 +2024,17 @@ class Eva {
         this._process_ws = mod.process_ws;
         this._clear_state = mod.clear_state;
         this._init_block_states = mod.init_block_states;
+        this.enable_event_map = mod.enable_event_map;
+        this._push_event_topic = mod.push_event_topic;
+        if (this._event_map) {
+          for (const [k, v] of this._event_map.subscribed_topics) {
+            this.subscribe_event_topics(Array.from(v), k);
+          }
+        }
+        this.subscribe_event_topic = mod.subscribe_event_topic;
+        this.subscribe_event_topics = mod.subscribe_event_topics;
+        this.unsubscribe_event_topic = mod.unsubscribe_event_topic;
+        this.unsubscribe_all_event_topics = mod.unsubscribe_all_event_topics;
         for (const block of this._blocks.keys()) {
           this._delete_block_states(block);
           this._init_block_states(block);
