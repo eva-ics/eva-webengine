@@ -2010,6 +2010,7 @@ class Eva {
         }
         this._clear_watchers = mod.clear_watchers;
         this._clear_states = mod.clear_states;
+        this._report_cleanup = mod.report_cleanup;
         this.watch = mod.watch;
         this.get_mode = mod.get_mode;
         this._unwatch_func = mod.unwatch_func;
