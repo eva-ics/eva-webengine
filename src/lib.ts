@@ -761,6 +761,9 @@ interface SessionState {
   otp: string | null;
 }
 
+/**
+ * The default session state
+ */
 const defaultSessionState = (): SessionState => {
   return {
     login: LoginState.Inactive,
@@ -955,6 +958,10 @@ class Eva {
   }
 
   // wasm override
+  /**
+   * Enables pub/sub event map. Usually not required to be called manually, as
+   * called automatically as soon as there is a subscription performed.
+   */
   enable_event_map() {
     if (this._event_map === null) {
       this._event_map = (new SubMap() as SubMap<EventHandler>)
@@ -966,6 +973,14 @@ class Eva {
   }
 
   // wasm override
+  /**
+   * Subscribe to an event topic
+   *
+   * @param topic {string} event topic
+   * @param fn {EventHandler} event handler
+   *
+   * @returns true if subscription was successful
+   */
   subscribe_event_topic(topic: string, fn: EventHandler): boolean {
     this.enable_event_map();
     this._event_map!.registerClient(fn);
@@ -974,6 +989,13 @@ class Eva {
   }
 
   // wasm override
+  /**
+   * Subscribe to multiple event topics
+   *
+   * @param topics {Array<string>} event topics
+   * @param fn {EventHandler} event handler
+   * @returns true if subscription was successful
+   */
   subscribe_event_topics(topics: Array<string>, fn: EventHandler): boolean {
     this.enable_event_map();
     this._event_map!.registerClient(fn);
@@ -984,11 +1006,23 @@ class Eva {
   }
 
   // wasm override
+  /**
+   * Unsubscribe from an event topic
+   *
+   * @param topic {string} event topic
+   * @param fn {EventHandler} event handler
+   */
   unsubscribe_event_topic(topic: string, fn: EventHandler) {
     this._event_map?.unsubscribe(topic, fn);
   }
 
   // wasm override
+  /**
+   * Unsubscribe from multiple event topics
+   *
+   * @param topics {Array<string>} event topics
+   * @param fn {EventHandler} event handler
+   */
   unsubscribe_event_topics(topics: Array<string>, fn: EventHandler) {
     for (let topic of topics) {
       this._event_map?.unsubscribe(topic, fn);
@@ -996,6 +1030,11 @@ class Eva {
   }
 
   // wasm override
+  /**
+   * Unsubscribe from all event topics
+   *
+   * @param fn {EventHandler} event handler
+   */
   unsubscribe_all_event_topics(fn: EventHandler) {
     this._event_map?.unsubscribeAll(fn);
     this._event_map?.unregisterClient(fn);
