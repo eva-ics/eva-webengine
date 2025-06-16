@@ -622,6 +622,146 @@ class Eva_LVAR {
   }
 }
 
+/**
+ * Binary stream parameters
+ */
+interface EvaStreamParameters {
+  /**
+   * OID the data is streamed from
+   */
+  oid: string;
+  /**
+   * Name of the stream, used for identification, unique
+   */
+  name: string;
+  /**
+   * On start callback
+   */
+  onStart?: () => void;
+  /**
+   * On data callback
+   */
+  onData?: (data: ArrayBuffer) => void;
+  /**
+   * On error callback
+   */
+  onError?: (err: EvaError) => void;
+  /**
+   * On end of stream callback, the stream is not closed and may receive more
+   * data, but the handler must be prepared certain stream parameters may
+   * change
+   */
+  onEOS?: () => void;
+}
+
+class _EvaStream {
+  oid: string;
+  eva: Eva;
+  name: string;
+  ws: WebSocket | null;
+  onStart: () => void;
+  onData: (data: ArrayBuffer) => void;
+  onError: (err: EvaError) => void;
+  onEOS: () => void;
+  constructor(oid: string, name: string, eva: Eva) {
+    this.oid = oid;
+    this.name = name;
+    this.eva = eva;
+    this.ws = null;
+    this.onStart = () => {};
+    this.onData = (_data: ArrayBuffer) => {};
+    this.onError = (err: EvaError) => {
+      this.eva.log.error(`Stream ${this.name} error`, err);
+    };
+    this.onEOS = () => {};
+  }
+  _restart() {
+    this._stop();
+    this._start();
+  }
+  _start() {
+    if (!this.eva.ws_mode) {
+      this.onError(
+        new EvaError(
+          EvaErrorKind.UNSUPPORTED,
+          "WebSocket mode is disabled in EVA ICS WebEngine"
+        )
+      );
+      return;
+    }
+    if (!this.eva.api_token) {
+      this.onError(new EvaError(EvaErrorKind.ACCESS_DENIED, "Not logged in"));
+      return;
+    }
+    let ws_uri = this.eva._get_ws_uri();
+    ws_uri += `k=${this.eva.api_token}`;
+    const ws = new this.eva.external.WebSocket(ws_uri);
+    ws.binaryType = "arraybuffer";
+    ws.onerror = (evt: Event) => {
+      this.onError(
+        new EvaError(EvaErrorKind.FUNC_FAILED, `WebSocket error: ${evt.type}`)
+      );
+      this._stop();
+    };
+    ws.onmessage = (evt: MessageEvent<any>) => {
+      if (typeof evt.data === "string") {
+        let data = JSON.parse(evt.data);
+        if (data.s !== "stream") {
+          return;
+        }
+        switch (data.d) {
+          case "start":
+            this.onStart();
+            break;
+          case "eos":
+            this.onEOS();
+            break;
+          case "forbidden":
+            this.onError(
+              new EvaError(
+                EvaErrorKind.ACCESS_DENIED,
+                `Stream ${this.name} access denied (${this.oid})`
+              )
+            );
+            this._stop();
+            break;
+          default:
+            break;
+        }
+      } else {
+        this.onData(evt.data);
+      }
+    };
+    ws.onclose = () => {
+      this._stop();
+    };
+    ws.addEventListener("open", () => {
+      let payload = { m: "stream.start", p: { i: this.oid } };
+      ws.send(JSON.stringify(payload));
+      ws.send("");
+    });
+    this.ws = ws;
+  }
+  _stop() {
+    const ws = this.ws;
+    if (ws) {
+      try {
+        ws.onclose = null;
+        ws.onmessage = () => {};
+        ws.onerror = () => {};
+        ws.close();
+      } catch (err) {
+        // web socket may be still open, will close later
+        setTimeout(() => {
+          try {
+            ws?.close();
+          } catch (err) {}
+        }, 100);
+      }
+    }
+  }
+}
+
 class _EvaStateBlock {
   state_updates: boolean | Array<string>;
   eva: Eva;
@@ -834,6 +974,7 @@ class Eva {
   _scheduled_restarter: any;
   _states: Map<string, Map<string, ItemState>>;
   _blocks: Map<string, _EvaStateBlock>;
+  _streams: Map<string, _EvaStream>;
   _last_ping: Map<string, number | null>;
   _last_pong: Map<string, number | null>;
   ws: Map<string, WebSocket>;
@@ -879,6 +1020,7 @@ class Eva {
     this._last_ping.set(GLOBAL_BLOCK_NAME, null);
     this._last_pong = new Map();
     this._last_pong.set(GLOBAL_BLOCK_NAME, null);
+    this._streams = new Map();
     this._log_subscribed = false;
     this._log_started = false;
     this._log_first_load = false;
@@ -1098,6 +1240,46 @@ class Eva {
     this.login = "";
     this.#password = "";
     this.#apikey = "";
+  }
+
+  /**
+   * Start a binary stream
+   *
+   * @param params {EvaStreamParameters} stream parameters
+   */
+  start_stream(params: EvaStreamParameters) {
+    const old_stream = this._streams.get(params.oid);
+    if (old_stream) {
+      old_stream._stop();
+    }
+    const stream = new _EvaStream(params.oid, params.name, this);
+    if (params.onStart) {
+      stream.onStart = params.onStart;
+    }
+    if (params.onData) {
+      stream.onData = params.onData;
+    }
+    if (params.onError) {
+      stream.onError = params.onError;
+    }
+    if (params.onEOS) {
+      stream.onEOS = params.onEOS;
+    }
+    this._streams.set(params.name, stream);
+    stream._start();
+  }
+
+  /**
+   * Stop a binary stream
+   *
+   * @param name {string} stream name
+   */
+  stop_stream(name: string) {
+    let stream = this._streams.get(name);
+    if (stream) {
+      stream._stop();
+      this._streams.delete(name);
+    }
   }
 
   /**
@@ -2429,6 +2611,9 @@ class Eva {
     for (let [_, block] of this._blocks) {
       block._stop();
     }
+    for (let [_, stream] of this._streams) {
+      stream._stop();
+    }
     this._clear();
     if (this._heartbeat_reloader) {
       clearInterval(this._heartbeat_reloader);
@@ -2540,6 +2725,36 @@ class Eva {
     });
   }
 
+  _get_ws_uri(): string {
+    let uri;
+    if (!this.api_uri) {
+      let loc = window.location;
+      if (loc.protocol === "https:") {
+        uri = "wss:";
+      } else {
+        uri = "ws:";
+      }
+      uri += "//" + loc.host;
+    } else {
+      uri = this.api_uri;
+      if (uri.startsWith("http://")) {
+        uri = uri.replace("http://", "ws://");
+      } else if (uri.startsWith("https://")) {
+        uri = uri.replace("https://", "wss://");
+      } else {
+        let loc = window.location;
+        if (loc.protocol === "https:") {
+          uri = "wss:";
+        } else {
+          uri = "ws:";
+        }
+        uri += "//" + loc.host + this.api_uri;
+      }
+    }
+    let ws_uri = `${uri}${this.ws_uri}?`;
+    return ws_uri;
+  }
+
   async _start_ws(
     state_updates: boolean | Array<string>,
     block: string
@@ -2547,32 +2762,7 @@ class Eva {
     check_state_updates(state_updates);
     return new Promise((resolve) => {
       if (this.ws_mode) {
-        let uri;
-        if (!this.api_uri) {
-          let loc = window.location;
-          if (loc.protocol === "https:") {
-            uri = "wss:";
-          } else {
-            uri = "ws:";
-          }
-          uri += "//" + loc.host;
-        } else {
-          uri = this.api_uri;
-          if (uri.startsWith("http://")) {
-            uri = uri.replace("http://", "ws://");
-          } else if (uri.startsWith("https://")) {
-            uri = uri.replace("https://", "wss://");
-          } else {
-            let loc = window.location;
-            if (loc.protocol === "https:") {
-              uri = "wss:";
-            } else {
-              uri = "ws:";
-            }
-            uri += "//" + loc.host + this.api_uri;
-          }
-        }
-        let ws_uri = `${uri}${this.ws_uri}?`;
+        let ws_uri = this._get_ws_uri();
         if (block) {
           ws_uri += `_block=${block}&`;
         }
@@ -3007,6 +3197,7 @@ export {
   Eva,
   EvaError,
   EvaErrorKind,
+  EvaStreamParameters,
   TokenMode,
   SessionAuthKind,
   SessionACI,
