@@ -16,6 +16,11 @@ const isMask = (oid: string): boolean => {
   return false;
 };
 
+enum SerializationKind {
+  JSON = "json",
+  MsgPack = "msgpack"
+}
+
 enum EvaErrorKind {
   NOT_FOUND = -32001,
   ACCESS_DENIED = -32002,
@@ -162,6 +167,7 @@ interface External {
   fetch?: any;
   WebSocket?: any;
   QRious?: any;
+  msgpack?: any;
 }
 
 interface ActionResult {
@@ -1683,6 +1689,18 @@ class Eva {
     }
   }
 
+  async api_call({
+    method,
+    params,
+    serialization_kind
+  }: {
+    method: string;
+    params?: object | string | Array<string>;
+    serialization_kind?: SerializationKind;
+  }): Promise<any> {
+    return this.call(method, params, undefined, serialization_kind);
+  }
+
   /**
    * Call API function
    *
@@ -1697,7 +1715,8 @@ class Eva {
   async call(
     method: string,
     p1?: object | string | Array<string>,
-    p2?: object
+    p2?: object,
+    serialization_kind?: SerializationKind
   ): Promise<any> {
     if (this.allow_logged_in_calls_only) {
       if (!this.logged_in) {
@@ -1712,7 +1731,7 @@ class Eva {
       params = p1;
     }
     let p = this._prepare_call_params(params);
-    return this._api_call(method, p);
+    return this._api_call(method, p, serialization_kind);
   }
 
   /**
@@ -2429,7 +2448,11 @@ class Eva {
     };
   }
 
-  async _api_call(method: string, params?: object): Promise<any> {
+  async _api_call(
+    method: string,
+    params?: object,
+    serialization_kind?: SerializationKind
+  ): Promise<any> {
     const req = this._prepare_api_call(method, params);
     const id = req.id;
     let api_uri = `${this.api_uri}/jrpc`;
@@ -2438,20 +2461,48 @@ class Eva {
     }
     this._debug("_api_call", `${id}: ${api_uri}: ${method}`);
     return new Promise((resolve, reject) => {
+      let content_type;
+      let body;
+      let ser_kind = serialization_kind || SerializationKind.JSON;
+      switch (ser_kind) {
+        case SerializationKind.MsgPack:
+          if (!this.external.msgpack) {
+            reject(
+              new EvaError(
+                EvaErrorKind.UNSUPPORTED,
+                "MsgPack serialization is not supported - no methods set"
+              )
+            );
+            return;
+          }
+          content_type = "application/x-msgpack";
+          body = this.external.msgpack.encode(req);
+          break;
+        case SerializationKind.JSON:
+          content_type = "application/json";
+          body = JSON.stringify(req);
+          break;
+        default:
+          reject(
+            new EvaError(
+              EvaErrorKind.UNSUPPORTED,
+              "Unsupported serialization kind"
+            )
+          );
+      }
       this.external
         .fetch(api_uri, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": content_type
           },
           redirect: "error",
-          body: JSON.stringify(req)
+          body
         })
         .then((response: any) => {
           if (response.ok) {
             this._debug(method, `api call ${id} completed`);
-            response
-              .json()
+            this._deserializePromise(response, ser_kind)
               .then((data: JsonRpcResponse) => {
                 if (
                   data.id != id ||
@@ -3080,6 +3131,38 @@ class Eva {
     });
   }
 
+  _deserializePromise = (
+    response: any,
+    serialization_kind: SerializationKind
+  ): Promise<any> => {
+    switch (serialization_kind) {
+      case SerializationKind.MsgPack:
+        return new Promise((resolve, reject) => {
+          response.arrayBuffer().then((buffer: ArrayBuffer) => {
+            try {
+              const data = this.external.msgpack.decode(buffer);
+              resolve(data);
+            } catch (err) {
+              reject(
+                new EvaError(
+                  EvaErrorKind.INVALID_DATA,
+                  "Invalid MsgPack response",
+                  err
+                )
+              );
+            }
+          });
+        });
+      case SerializationKind.JSON:
+        return response.json();
+      default:
+        throw new EvaError(
+          EvaErrorKind.UNSUPPORTED,
+          "Unknown serialization kind"
+        );
+    }
+  };
+
   /**
    * QR code for EvaHI
    *
@@ -3198,6 +3281,7 @@ export {
   EvaError,
   EvaErrorKind,
   EvaStreamParameters,
+  SerializationKind,
   TokenMode,
   SessionAuthKind,
   SessionACI,
