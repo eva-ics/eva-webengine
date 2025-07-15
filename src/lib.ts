@@ -1689,6 +1689,15 @@ class Eva {
     }
   }
 
+  /**
+   * Calls any available API function
+   *
+   * @param {Object} options - The options for the API call.
+   * @param {string} options.method - The API method to call.
+   * @param {object|string|string[]} [options.params] - Parameters to pass to the API method.
+   * @param {SerializationKind} [options.serialization_kind] - Optional serialization kind for the request.
+   * @returns {Promise<any>} - A promise that resolves with the result of the API call.
+   */
   async api_call({
     method,
     params,
@@ -1704,7 +1713,7 @@ class Eva {
   /**
    * Call API function
    *
-   * Calls any available SFA API function
+   * Calls any available API function (old version, may be deprecated soon)
    *
    * @param method {string} API method
    * @param p1 {object} call parameters. if specified as a string/object, transformed to i=val
