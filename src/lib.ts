@@ -1,4 +1,4 @@
-const eva_webengine_version = "0.9.13";
+const eva_webengine_version = "0.9.14";
 
 import { Logger } from "bmat/log";
 import { cookies } from "bmat/dom";
@@ -882,6 +882,8 @@ interface ServerInfo {
   acl: SessionACL;
   build: number;
   ok: boolean;
+  hmi_svc_id: string;
+  num_cpus: number;
   product_code: string;
   product_name: string;
   system_name: string;
