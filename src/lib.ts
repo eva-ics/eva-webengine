@@ -791,6 +791,10 @@ class _EvaStateBlock {
         const reload = this.eva._intervals.get(IntervalKind.Reload) as number;
         if (reload) {
           this._ajax_reloader = setInterval(() => {
+            if (!this.eva.logged_in) {
+              this._stop();
+              return;
+            }
             this.eva._load_states(this.state_updates, this.name);
           }, reload * 1000);
         }
