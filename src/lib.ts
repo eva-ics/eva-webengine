@@ -18,7 +18,7 @@ const isMask = (oid: string): boolean => {
 
 enum SerializationKind {
   JSON = "json",
-  MsgPack = "msgpack"
+  MsgPack = "msgpack",
 }
 
 enum EvaErrorKind {
@@ -57,7 +57,7 @@ enum EvaErrorKind {
   BUS_BUSY = -32118,
   BUS_NOT_DELIVERED = -32119,
   BUS_TIMEOUT = -32120,
-  BUS_ACCESS = -32121
+  BUS_ACCESS = -32121,
 }
 
 enum EventKind {
@@ -73,13 +73,13 @@ enum EventKind {
   ServerRestart = "server.restart",
   LogRecord = "log.record",
   LogPostProcess = "log.postprocess",
-  WASMError = "wasm.error"
+  WASMError = "wasm.error",
 }
 
 enum StateProp {
   Status = "status",
   Value = "value",
-  Any = "any"
+  Any = "any",
 }
 
 const GLOBAL_BLOCK_NAME = ".";
@@ -225,7 +225,7 @@ enum IntervalKind {
   Heartbeat = "heartbeat",
   Reload = "reload",
   Restart = "restart",
-  WSBufTTL = "ws_buf_ttl"
+  WSBufTTL = "ws_buf_ttl",
 }
 
 class EvaError {
@@ -279,7 +279,7 @@ class EvaBulkRequest {
   prepare(
     method: string,
     p1: string | object,
-    p2?: object
+    p2?: object,
   ): EvaBulkRequestPartHandler {
     let params: any;
     if (typeof p1 === "string" || Array.isArray(p1)) {
@@ -315,10 +315,10 @@ class EvaBulkRequest {
         .fetch(api_uri, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
           redirect: "error",
-          body: JSON.stringify(this.payload)
+          body: JSON.stringify(this.payload),
         })
         .then((response: any) => {
           if (response.ok) {
@@ -336,7 +336,7 @@ class EvaBulkRequest {
                       reject({
                         code: -32009,
                         message: "Invalid server response",
-                        data: d
+                        data: d,
                       });
                     } else {
                       let id = d.id;
@@ -350,20 +350,20 @@ class EvaBulkRequest {
                       if (d.error !== undefined) {
                         this.eva._debug(
                           "call_bulk req",
-                          `${id} failed: ${d.error.code} (${d.error.message})`
+                          `${id} failed: ${d.error.code} (${d.error.message})`,
                         );
                         if (fn_err) {
                           fn_err({
                             code: d.error.code,
                             message: d.error.message,
-                            data: d
+                            data: d,
                           });
                         }
                       } else {
                         if (this.eva.debug == 2) {
                           this.eva.log.info(
                             `call_bulk API ${id} ${(req as any).func} response`,
-                            d.result
+                            d.result,
                           );
                         }
                         if (fn_ok) {
@@ -477,7 +477,7 @@ class Eva_ACTION {
     method: string,
     oid: string,
     params?: object,
-    wait = false
+    wait = false,
   ): Promise<ActionResult> {
     return new Promise((resolve, reject) => {
       this.eva
@@ -690,8 +690,8 @@ class _EvaStream {
       this.onError(
         new EvaError(
           EvaErrorKind.UNSUPPORTED,
-          "WebSocket mode is disabled in EVA ICS WebEngine"
-        )
+          "WebSocket mode is disabled in EVA ICS WebEngine",
+        ),
       );
       return;
     }
@@ -705,7 +705,7 @@ class _EvaStream {
     ws.binaryType = "arraybuffer";
     ws.onerror = (evt: Event) => {
       this.onError(
-        new EvaError(EvaErrorKind.FUNC_FAILED, `WebSocket error: ${evt.type}`)
+        new EvaError(EvaErrorKind.FUNC_FAILED, `WebSocket error: ${evt.type}`),
       );
       this._stop();
     };
@@ -726,8 +726,8 @@ class _EvaStream {
             this.onError(
               new EvaError(
                 EvaErrorKind.ACCESS_DENIED,
-                `Stream ${this.name} access denied (${this.oid})`
-              )
+                `Stream ${this.name} access denied (${this.oid})`,
+              ),
             );
             this._stop();
             break;
@@ -773,48 +773,75 @@ class _EvaStateBlock {
   eva: Eva;
   name: string;
   _ajax_reloader: any;
+  _generation: number;
   constructor(
     name: string,
     state_updates: boolean | Array<string>,
-    engine: Eva
+    engine: Eva,
   ) {
     this.name = name;
     this.state_updates = state_updates;
     this.eva = engine;
+    this._generation = 0;
   }
   _start() {
+    this._generation += 1;
+    const generation = this._generation;
+    const run_id = this.eva._run_generation;
     if (this.eva.ws_mode) {
       this.eva._start_ws(this.state_updates, this.name);
     }
-    this.eva._load_states(this.state_updates, this.name).then(() => {
-      if (this.eva.ws_mode) {
-        const reload = this.eva._intervals.get(IntervalKind.Reload) as number;
-        if (reload) {
-          this._ajax_reloader = setInterval(() => {
-            if (!this.eva.logged_in) {
-              this._stop();
-              return;
-            }
-            this.eva._load_states(this.state_updates, this.name);
-          }, reload * 1000);
+    this.eva
+      ._load_states(this.state_updates, this.name, generation, run_id)
+      .then(() => {
+        if (!this._is_current(generation, run_id)) {
+          return;
         }
-      } else {
-        this._ajax_reloader = setInterval(
-          () => {
-            this.eva._load_states(this.state_updates, this.name);
-          },
-          this.eva._intervals.get(IntervalKind.AjaxReload) as number
-        );
-      }
-    });
+        if (this.eva.ws_mode) {
+          const reload = this.eva._intervals.get(IntervalKind.Reload) as number;
+          if (reload) {
+            this._ajax_reloader = setInterval(() => {
+              if (
+                !this._is_current(generation, run_id) ||
+                !this.eva.logged_in
+              ) {
+                this._stop();
+                return;
+              }
+              this.eva
+                ._load_states(this.state_updates, this.name, generation, run_id)
+                .catch(() => {});
+            }, reload * 1000);
+          }
+        } else {
+          this._ajax_reloader = setInterval(
+            () => {
+              if (
+                !this._is_current(generation, run_id) ||
+                !this.eva.logged_in
+              ) {
+                this._stop();
+                return;
+              }
+              this.eva
+                ._load_states(this.state_updates, this.name, generation, run_id)
+                .catch(() => {});
+            },
+            (this.eva._intervals.get(IntervalKind.AjaxReload) as number) * 1000,
+          );
+        }
+      })
+      .catch(() => {});
   }
   _restart() {
     this._stop();
     this._start();
   }
   _stop() {
+    this._generation += 1;
     if (this._ajax_reloader) {
       clearInterval(this._ajax_reloader);
+      this._ajax_reloader = null;
     }
     let ws = this.eva.ws.get(this.name);
     if (ws) {
@@ -833,11 +860,18 @@ class _EvaStateBlock {
       }
     }
   }
+  _is_current(generation: number, run_id: number): boolean {
+    return (
+      this._generation === generation &&
+      this.eva._run_generation === run_id &&
+      this.eva._blocks.get(this.name) === this
+    );
+  }
 }
 
 enum TokenMode {
   Normal = "normal",
-  ReadOnly = "readonly"
+  ReadOnly = "readonly",
 }
 
 enum SessionAuthKind {
@@ -845,7 +879,7 @@ enum SessionAuthKind {
   Key = "key",
   // returned for "login" method only, after switched to "token"
   Login = "login",
-  No = "unauthorized"
+  No = "unauthorized",
 }
 
 interface SessionACI {
@@ -866,7 +900,7 @@ enum ACLOp {
   Log = "log",
   Developer = "developer",
   Moderator = "moderator",
-  Supervisor = "supervisor"
+  Supervisor = "supervisor",
 }
 
 interface SessionACL {
@@ -904,7 +938,7 @@ enum LoginState {
   Failed = "failed",
   OTPRequired = "otp.required",
   OTPInvalid = "otp.invalid",
-  OTPSetup = "otp.setup"
+  OTPSetup = "otp.setup",
 }
 
 interface SessionState {
@@ -920,7 +954,7 @@ const defaultSessionState = (): SessionState => {
   return {
     login: LoginState.Inactive,
     error: null,
-    otp: null
+    otp: null,
   };
 };
 
@@ -931,7 +965,7 @@ enum EventTopic {
   Server = "SERVER",
   Supervisor = "SUPERVISOR",
   WeSession = "WE/SESSION",
-  WeItemState = "WE/ST"
+  WeItemState = "WE/ST",
 }
 
 // Topics
@@ -984,6 +1018,8 @@ class Eva {
   _ajax_reloader: any;
   _log_reloader: any;
   _scheduled_restarter: any;
+  _run_generation: number;
+  _pending_api_calls: Set<AbortController>;
   _states: Map<string, Map<string, ItemState>>;
   _blocks: Map<string, _EvaStateBlock>;
   _streams: Map<string, _EvaStream>;
@@ -1045,7 +1081,7 @@ class Eva {
       navigator.userAgent.startsWith("evaHI ");
     this.log_params = {
       level: 20,
-      records: 200
+      records: 200,
     };
     this._update_state_functions = new Map();
     this._update_state_mask_functions = new Map();
@@ -1065,19 +1101,21 @@ class Eva {
       [IntervalKind.Heartbeat, 5],
       [IntervalKind.Reload, 5],
       [IntervalKind.Restart, 1],
-      [IntervalKind.WSBufTTL, 0]
+      [IntervalKind.WSBufTTL, 0],
     ]);
     this.log_level_names = new Map([
       [10, "DEBUG"],
       [20, "INFO"],
       [30, "WARNING"],
       [40, "ERROR"],
-      [50, "CRITICAL"]
+      [50, "CRITICAL"],
     ]);
     this._heartbeat_reloader = null;
     this._ajax_reloader = null;
     this._log_reloader = null;
     this._scheduled_restarter = null;
+    this._run_generation = 0;
+    this._pending_api_calls = new Set();
     this._action_watch_functions = new Map();
     this._action_states = new Map();
     this._clear();
@@ -1304,14 +1342,14 @@ class Eva {
     if (name == GLOBAL_BLOCK_NAME) {
       throw new EvaError(
         EvaErrorKind.INVALID_PARAMS,
-        `WebEngine state block name ${GLOBAL_BLOCK_NAME} is reserved`
+        `WebEngine state block name ${GLOBAL_BLOCK_NAME} is reserved`,
       );
     }
     check_state_updates(state_updates);
     let old_block = this._blocks.get(name);
     if (old_block) {
       console.error(
-        `WebEngine state block ${name} has been already registered, removing the old instance`
+        `WebEngine state block ${name} has been already registered, removing the old instance`,
       );
       old_block._stop();
     }
@@ -1377,7 +1415,7 @@ class Eva {
     if (typeof fetch === "undefined") {
       this.log.error(
         '"fetch" function is unavailable. Upgrade your web browser or ' +
-          "connect polyfill"
+          "connect polyfill",
       );
       return;
     }
@@ -1392,10 +1430,12 @@ class Eva {
     }
   }
   _start_engine() {
+    this._run_generation += 1;
+    const run_id = this._run_generation;
     this._push_event_topic(EventTopic.WeSession, {
       login: LoginState.Starting,
       error: null,
-      otp: null
+      otp: null,
     });
     this._clear_last_pings();
     let q: LoginPayload = {};
@@ -1431,6 +1471,9 @@ class Eva {
     this.ignore_password_set_on_next_login = false;
     this._api_call("login", q)
       .then((data) => {
+        if (!this._is_run_current(run_id)) {
+          return;
+        }
         this.api_token = data.token;
         user = data.user;
         this._set_token_cookie();
@@ -1445,23 +1488,37 @@ class Eva {
         //this.evajw.set_api_version(data.api_version || 4);
         //}
         return Promise.all([
-          this._load_states(this.state_updates, GLOBAL_BLOCK_NAME),
+          this._load_states(
+            this.state_updates,
+            GLOBAL_BLOCK_NAME,
+            undefined,
+            run_id,
+          ),
           this._heartbeat(true),
-          this._start_ws(this.state_updates, GLOBAL_BLOCK_NAME)
+          this._start_ws(this.state_updates, GLOBAL_BLOCK_NAME),
         ]);
       })
       .then(() => {
+        if (!this._is_run_current(run_id)) {
+          return;
+        }
         if (!this.ws_mode) {
           if (this._ajax_reloader) {
             clearInterval(this._ajax_reloader);
           }
           this._ajax_reloader = setInterval(
             () => {
-              this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
-                () => {}
-              );
+              if (!this._is_run_current(run_id)) {
+                return;
+              }
+              this._load_states(
+                this.state_updates,
+                GLOBAL_BLOCK_NAME,
+                undefined,
+                run_id,
+              ).catch(() => {});
             },
-            (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000
+            (this._intervals.get(IntervalKind.AjaxReload) as number) * 1000,
           );
         } else {
           if (this._ajax_reloader) {
@@ -1470,9 +1527,15 @@ class Eva {
           let reload = this._intervals.get(IntervalKind.Reload) as number;
           if (reload) {
             this._ajax_reloader = setInterval(() => {
-              this._load_states(this.state_updates, GLOBAL_BLOCK_NAME).catch(
-                () => {}
-              );
+              if (!this._is_run_current(run_id)) {
+                return;
+              }
+              this._load_states(
+                this.state_updates,
+                GLOBAL_BLOCK_NAME,
+                undefined,
+                run_id,
+              ).catch(() => {});
             }, reload * 1000);
           }
         }
@@ -1483,7 +1546,7 @@ class Eva {
           () => {
             this._heartbeat(false).catch(() => {});
           },
-          (this._intervals.get(IntervalKind.Heartbeat) as number) * 1000
+          (this._intervals.get(IntervalKind.Heartbeat) as number) * 1000,
         );
         this._debug("start", `login successful, user: ${user}`);
         this.logged_in = true;
@@ -1492,13 +1555,16 @@ class Eva {
         this._push_event_topic(EventTopic.WeSession, {
           login: LoginState.Active,
           error: null,
-          otp: null
+          otp: null,
         });
         for (let [_, block] of this._blocks) {
           block._restart();
         }
       })
       .catch((err) => {
+        if (!this._is_run_current(run_id)) {
+          return;
+        }
         this._debug("start", err);
         this.logged_in = false;
         if (err?.code === undefined) {
@@ -1558,7 +1624,7 @@ class Eva {
           () => {
             this._load_log_entries(false);
           },
-          (this._intervals.get(IntervalKind.AjaxLogReload) as number) * 1000
+          (this._intervals.get(IntervalKind.AjaxLogReload) as number) * 1000,
         );
       }
     }
@@ -1573,7 +1639,7 @@ class Eva {
    */
   async set_state_updates(
     state_updates: Array<string> | boolean,
-    clear_existing?: boolean
+    clear_existing?: boolean,
   ) {
     check_state_updates(state_updates);
     this.state_updates = state_updates;
@@ -1707,7 +1773,7 @@ class Eva {
   async api_call({
     method,
     params,
-    serialization_kind
+    serialization_kind,
   }: {
     method: string;
     params?: object | string | Array<string>;
@@ -1731,7 +1797,7 @@ class Eva {
     method: string,
     p1?: object | string | Array<string>,
     p2?: object,
-    serialization_kind?: SerializationKind
+    serialization_kind?: SerializationKind,
   ): Promise<any> {
     if (this.allow_logged_in_calls_only) {
       if (!this.logged_in) {
@@ -1814,7 +1880,7 @@ class Eva {
             this._push_event_topic(EventTopic.WeSession, {
               login: LoginState.OTPRequired,
               error: null,
-              otp: msg
+              otp: msg,
             });
             return;
           case "INVALID":
@@ -1822,7 +1888,7 @@ class Eva {
             this._push_event_topic(EventTopic.WeSession, {
               login: LoginState.OTPInvalid,
               error: null,
-              otp: msg
+              otp: msg,
             });
             return;
           case "SETUP":
@@ -1830,7 +1896,7 @@ class Eva {
             this._push_event_topic(EventTopic.WeSession, {
               login: LoginState.OTPSetup,
               error: null,
-              otp: msg
+              otp: msg,
             });
             return;
         }
@@ -1842,7 +1908,7 @@ class Eva {
       this._push_event_topic(EventTopic.WeSession, {
         login: LoginState.Failed,
         error: err,
-        otp: null
+        otp: null,
       });
     }
   }
@@ -1916,7 +1982,7 @@ class Eva {
     oid: string,
     func: (state: ItemState) => void,
     ignore_initial = false,
-    prot = false
+    prot = false,
   ) {
     if (isMask(oid)) {
       let map = this._update_state_mask_functions;
@@ -1989,7 +2055,8 @@ class Eva {
             } else {
               setTimeout(
                 watcher,
-                (this._intervals.get(IntervalKind.ActionWatch) as number) * 1000
+                (this._intervals.get(IntervalKind.ActionWatch) as number) *
+                  1000,
               );
             }
           })
@@ -2004,7 +2071,7 @@ class Eva {
       };
       setTimeout(
         watcher,
-        (this._intervals.get(IntervalKind.ActionWatch) as number) * 1000
+        (this._intervals.get(IntervalKind.ActionWatch) as number) * 1000,
       );
     } else {
       fcs.push(func);
@@ -2076,7 +2143,7 @@ class Eva {
     if (fcs !== undefined) {
       map?.set(
         oid,
-        fcs.filter((el) => el.func !== func)
+        fcs.filter((el) => el.func !== func),
       );
     }
   }
@@ -2136,7 +2203,7 @@ class Eva {
   state(oid: string): ItemState | Array<ItemState> | undefined {
     enum StateSelectKind {
       Single,
-      Mask
+      Mask,
     }
     let state_select_kind = StateSelectKind.Single;
     for (let c of oid) {
@@ -2203,12 +2270,12 @@ class Eva {
     this._push_event_topic(EventTopic.WeSession, {
       login: LoginState.Stopping,
       error: null,
-      otp: null
+      otp: null,
     });
     const stop_ev = {
       login: LoginState.Inactive,
       error: null,
-      otp: null
+      otp: null,
     };
     return new Promise((resolve, reject) => {
       this._stop_engine();
@@ -2341,7 +2408,7 @@ class Eva {
     this.evajw = undefined;
     const js_path = this.wasm === true ? "./evajw/evajw.js" : this.wasm;
     eval(
-      `import("${js_path}?" + new Date().getTime()).catch((e)=>{this._invoke_handler("wasm.error", e);this._start_engine()}).then((m)=>{this._inject_evajw(m)})`
+      `import("${js_path}?" + new Date().getTime()).catch((e)=>{this._invoke_handler("wasm.error", e);this._start_engine()}).then((m)=>{this._inject_evajw(m)})`,
     );
   }
 
@@ -2388,11 +2455,11 @@ class Eva {
         const ev: ItemState = {
           oid: state.oid,
           status: null,
-          value: null
+          value: null,
         };
         this._push_event_topic(
           `${EventTopic.WeItemState}/${block}/${oid_path}`,
-          ev
+          ev,
         );
         this._push_event_topic(`${EventTopic.ItemState}/${oid_path}/`, ev);
       }
@@ -2459,14 +2526,14 @@ class Eva {
       jsonrpc: "2.0",
       method: method,
       params: params,
-      id: id
+      id: id,
     };
   }
 
   async _api_call(
     method: string,
     params?: object,
-    serialization_kind?: SerializationKind
+    serialization_kind?: SerializationKind,
   ): Promise<any> {
     const req = this._prepare_api_call(method, params);
     const id = req.id;
@@ -2475,97 +2542,102 @@ class Eva {
       api_uri += `?${method}`;
     }
     this._debug("_api_call", `${id}: ${api_uri}: ${method}`);
-    return new Promise((resolve, reject) => {
-      let content_type;
-      let body;
-      let ser_kind = serialization_kind || SerializationKind.JSON;
-      switch (ser_kind) {
-        case SerializationKind.MsgPack:
-          if (!this.external.msgpack) {
-            reject(
-              new EvaError(
-                EvaErrorKind.UNSUPPORTED,
-                "MsgPack serialization is not supported - no methods set"
-              )
-            );
-            return;
-          }
-          content_type = "application/x-msgpack";
-          body = this.external.msgpack.encode(req);
-          break;
-        case SerializationKind.JSON:
-          content_type = "application/json";
-          body = JSON.stringify(req);
-          break;
-        default:
-          reject(
-            new EvaError(
-              EvaErrorKind.UNSUPPORTED,
-              "Unsupported serialization kind"
-            )
+    let content_type;
+    let body;
+    let ser_kind = serialization_kind || SerializationKind.JSON;
+    switch (ser_kind) {
+      case SerializationKind.MsgPack:
+        if (!this.external.msgpack) {
+          throw new EvaError(
+            EvaErrorKind.UNSUPPORTED,
+            "MsgPack serialization is not supported - no methods set",
           );
+        }
+        content_type = "application/x-msgpack";
+        body = this.external.msgpack.encode(req);
+        break;
+      case SerializationKind.JSON:
+        content_type = "application/json";
+        body = JSON.stringify(req);
+        break;
+      default:
+        throw new EvaError(
+          EvaErrorKind.UNSUPPORTED,
+          "Unsupported serialization kind",
+        );
+    }
+    let controller: AbortController | null = null;
+    if (typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      this._pending_api_calls.add(controller);
+    }
+    try {
+      const fetch_params: any = {
+        method: "POST",
+        headers: {
+          "Content-Type": content_type,
+        },
+        redirect: "error",
+        body,
+      };
+      if (controller) {
+        fetch_params.signal = controller.signal;
       }
-      this.external
-        .fetch(api_uri, {
-          method: "POST",
-          headers: {
-            "Content-Type": content_type
-          },
-          redirect: "error",
-          body
-        })
-        .then((response: any) => {
-          if (response.ok) {
-            this._debug(method, `api call ${id} completed`);
-            this._deserializePromise(response, ser_kind)
-              .then((data: JsonRpcResponse) => {
-                if (
-                  data.id != id ||
-                  (data.result === undefined && data.error === undefined)
-                ) {
-                  reject(new EvaError(-32009, "Invalid server response", data));
-                } else if (data.error) {
-                  this._debug(
-                    method,
-                    `api call ${id} failed: ${data.error.code} (${data.error.message})`
-                  );
-                  reject(
-                    new EvaError(data.error.code, data.error.message, data)
-                  );
-                } else {
-                  if (this.debug == 2) {
-                    this.log.debug(`API ${id} ${method} response`, data.result);
-                  }
-                  resolve(data.result);
-                }
-              })
-              .catch((err: any) => {
-                let code = EvaErrorKind.INVALID_DATA;
-                let message = "Invalid server response";
-                this._debug(
-                  method,
-                  `api call ${id} failed: ${code} (${message})`
-                );
-                reject(new EvaError(code, message, err));
-              });
-          } else {
-            let code = EvaErrorKind.CORE_ERROR;
-            let message = "Server error";
-            this._debug(method, `api call ${id} failed: ${code} (${message})`);
-            reject(new EvaError(code, message));
-          }
-        })
-        .catch((err: any) => {
-          let code = EvaErrorKind.CORE_ERROR;
-          let message = "Server error";
-          this._debug(method, `api call ${id} failed: ${code} (${message})`);
-          reject(new EvaError(code, message, err));
-        });
-    });
+      const response = await this.external.fetch(api_uri, fetch_params);
+      if (!response.ok) {
+        let code = EvaErrorKind.CORE_ERROR;
+        let message = "Server error";
+        this._debug(method, `api call ${id} failed: ${code} (${message})`);
+        throw new EvaError(code, message);
+      }
+      this._debug(method, `api call ${id} completed`);
+      let data: JsonRpcResponse;
+      try {
+        data = await this._deserializePromise(response, ser_kind);
+      } catch (err: any) {
+        let code = EvaErrorKind.INVALID_DATA;
+        let message = "Invalid server response";
+        this._debug(method, `api call ${id} failed: ${code} (${message})`);
+        throw new EvaError(code, message, err);
+      }
+      if (
+        data.id != id ||
+        (data.result === undefined && data.error === undefined)
+      ) {
+        throw new EvaError(-32009, "Invalid server response", data);
+      } else if (data.error) {
+        this._debug(
+          method,
+          `api call ${id} failed: ${data.error.code} (${data.error.message})`,
+        );
+        throw new EvaError(data.error.code, data.error.message, data);
+      } else {
+        if (this.debug == 2) {
+          this.log.debug(`API ${id} ${method} response`, data.result);
+        }
+        return data.result;
+      }
+    } catch (err: any) {
+      if (controller?.signal.aborted) {
+        throw new EvaError(EvaErrorKind.ABORTED, "Request aborted", err);
+      }
+      if (err instanceof EvaError) {
+        throw err;
+      }
+      let code = EvaErrorKind.CORE_ERROR;
+      let message = "Server error";
+      this._debug(method, `api call ${id} failed: ${code} (${message})`);
+      throw new EvaError(code, message, err);
+    } finally {
+      if (controller) {
+        this._pending_api_calls.delete(controller);
+      }
+    }
   }
 
   async _heartbeat(on_login: boolean): Promise<void> {
     //const ws = this.ws.get(null);
+    const run_id = this._run_generation;
     return new Promise((resolve, reject) => {
       if (on_login) {
         this._clear_last_pings();
@@ -2582,11 +2654,11 @@ class Eva {
               ) {
                 this._debug(
                   "heartbeat",
-                  `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`
+                  `error: ws ping timeout, block ${k || GLOBAL_BLOCK_NAME}`,
                 );
                 const err = new EvaError(
                   EvaErrorKind.TIMEOUT,
-                  "WS ping timeout"
+                  "WS ping timeout",
                 );
                 this._invoke_handler(EventKind.HeartbeatError, err);
                 reject(err);
@@ -2601,7 +2673,7 @@ class Eva {
             try {
               this._debug(
                 `block ${k || GLOBAL_BLOCK_NAME} heartbeat`,
-                "ws ping"
+                "ws ping",
               );
               let payload = { m: "ping" };
               ws.send(JSON.stringify(payload));
@@ -2617,6 +2689,10 @@ class Eva {
       }
       this.call("test")
         .then((data: ServerInfo) => {
+          if (!this._is_run_current(run_id)) {
+            resolve();
+            return;
+          }
           this.server_info = data;
           this._push_event_topic(EventTopic.Server, this.server_info);
           this.tsdiff = new Date().getTime() / 1000 - data.time;
@@ -2624,6 +2700,13 @@ class Eva {
           resolve();
         })
         .catch((err: EvaError) => {
+          if (
+            err.code == EvaErrorKind.ABORTED ||
+            !this._is_run_current(run_id)
+          ) {
+            resolve();
+            return;
+          }
           this._debug("heartbeat", "error: unable to send test API call");
           if (err.code == EvaErrorKind.ACCESS_DENIED) {
             this.erase_token_cookie();
@@ -2638,7 +2721,7 @@ class Eva {
     if (this.ws_mode) this._lr2p = [];
     this.call("log.get", {
       l: this.log_params.level,
-      n: this.log_params.records
+      n: this.log_params.records,
     })
       .then((data: Array<LogRecord>) => {
         if (this.ws_mode && this._log_first_load) {
@@ -2662,7 +2745,7 @@ class Eva {
       () => {
         this.start();
       },
-      (this._intervals.get(IntervalKind.Restart) as number) * 1000
+      (this._intervals.get(IntervalKind.Restart) as number) * 1000,
     );
   }
 
@@ -2673,7 +2756,18 @@ class Eva {
     }
   }
 
+  _abort_pending_api_calls() {
+    for (const controller of this._pending_api_calls) {
+      try {
+        controller.abort();
+      } catch (err) {}
+    }
+    this._pending_api_calls.clear();
+  }
+
   _stop_engine() {
+    this._run_generation += 1;
+    this._abort_pending_api_calls();
     for (let [_, block] of this._blocks) {
       block._stop();
     }
@@ -2695,6 +2789,7 @@ class Eva {
     }
     let ws = this.ws.get(GLOBAL_BLOCK_NAME);
     if (ws) {
+      this.ws.delete(GLOBAL_BLOCK_NAME);
       try {
         ws.onclose = null;
         ws.onerror = function () {};
@@ -2708,6 +2803,10 @@ class Eva {
         }, 100);
       }
     }
+  }
+
+  _is_run_current(run_id: number): boolean {
+    return this._run_generation === run_id;
   }
 
   _prepare_call_params(params?: any): object {
@@ -2726,11 +2825,11 @@ class Eva {
         this.api_uri + "/ui",
         this.api_uri + "/pvt",
         this.api_uri + "/rpvt",
-        this.api_uri + "/upload"
+        this.api_uri + "/upload",
       ].map(
         (uri) =>
           (document.cookie = `auth=${this.api_token}; Path=${uri}; SameSite=Lax`),
-        this
+        this,
       );
     }
   }
@@ -2739,7 +2838,7 @@ class Eva {
   _process_loaded_states(
     data: Array<ItemState>,
     clear_unavailable: boolean,
-    block: string
+    block: string,
   ) {
     let received_oids: string[] = [];
     if (clear_unavailable) {
@@ -2767,7 +2866,9 @@ class Eva {
 
   async _load_states(
     state_updates: boolean | Array<string>,
-    block: string
+    block: string,
+    block_generation?: number,
+    run_id?: number,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!state_updates) {
@@ -2781,6 +2882,13 @@ class Eva {
         }
         this.call("item.state", params)
           .then((data: Array<ItemState>) => {
+            if (
+              (run_id !== undefined && !this._is_run_current(run_id)) ||
+              !this._can_process_block_states(block, block_generation)
+            ) {
+              resolve();
+              return;
+            }
             this._process_loaded_states(data, this.clear_unavailable, block);
             resolve();
           })
@@ -2789,6 +2897,23 @@ class Eva {
           });
       }
     });
+  }
+
+  _can_process_block_states(block: string, block_generation?: number): boolean {
+    if (block === GLOBAL_BLOCK_NAME) {
+      return true;
+    }
+    const state_block = this._blocks.get(block);
+    if (!state_block) {
+      return false;
+    }
+    if (
+      block_generation !== undefined &&
+      state_block._generation !== block_generation
+    ) {
+      return false;
+    }
+    return true;
   }
 
   _get_ws_uri(): string {
@@ -2823,7 +2948,7 @@ class Eva {
 
   async _start_ws(
     state_updates: boolean | Array<string>,
-    block: string
+    block: string,
   ): Promise<void> {
     check_state_updates(state_updates);
     return new Promise((resolve) => {
@@ -2849,7 +2974,7 @@ class Eva {
           ws.send("");
           if (state_updates) {
             let st: WsCommand = {
-              m: "subscribe.state"
+              m: "subscribe.state",
             };
             let masks;
             if (state_updates == true) {
@@ -2923,7 +3048,7 @@ class Eva {
         this._invoke_handler(data.s, data.d);
         this._push_event_topic(
           `${EventTopic.Supervisor}/${data.s.substring(11)}`,
-          data.d
+          data.d,
         );
         return;
       }
@@ -2939,7 +3064,7 @@ class Eva {
       if (Array.isArray(data.d)) {
         data.d.map(
           (state: ItemState) => this._process_state(state, true, block),
-          this
+          this,
         );
       } else {
         this._process_state(data.d, true, block);
@@ -2961,10 +3086,10 @@ class Eva {
       {
         oid: oid,
         status: null,
-        value: null
+        value: null,
       },
       false,
-      block
+      block,
     );
   }
 
@@ -3003,7 +3128,7 @@ class Eva {
         this._debug(
           "process_state",
           `${oid} s: ${state.status} v: "${state.value}"`,
-          `act: ${state.act} t: "${state.t}"`
+          `act: ${state.act} t: "${state.t}"`,
         );
         map?.set(oid, state);
         if (this._event_map !== null) {
@@ -3011,7 +3136,7 @@ class Eva {
           this._push_event_topic(`${EventTopic.ItemState}/${oid_path}`, state);
           this._push_event_topic(
             `${EventTopic.WeItemState}/${block}/${oid_path}`,
-            state
+            state,
           );
         }
         let fcs = this._update_state_functions.get(oid);
@@ -3142,13 +3267,13 @@ class Eva {
     return new this.external.QRious({
       element: typeof ctx === "object" ? ctx : document.getElementById(ctx),
       value: value,
-      size: size
+      size: size,
     });
   }
 
   _deserializePromise = (
     response: any,
-    serialization_kind: SerializationKind
+    serialization_kind: SerializationKind,
   ): Promise<any> => {
     switch (serialization_kind) {
       case SerializationKind.MsgPack:
@@ -3162,8 +3287,8 @@ class Eva {
                 new EvaError(
                   EvaErrorKind.INVALID_DATA,
                   "Invalid MsgPack response",
-                  err
-                )
+                  err,
+                ),
               );
             }
           });
@@ -3173,7 +3298,7 @@ class Eva {
       default:
         throw new EvaError(
           EvaErrorKind.UNSUPPORTED,
-          "Unknown serialization kind"
+          "Unknown serialization kind",
         );
     }
   };
@@ -3219,7 +3344,7 @@ class Eva {
     return new this.external.QRious({
       element: typeof ctx === "object" ? ctx : document.getElementById(ctx),
       value: value,
-      size: size
+      size: size,
     });
   }
   /**
@@ -3255,7 +3380,7 @@ const check_state_updates = (state_updates: any) => {
   ) {
     throw new EvaError(
       EvaErrorKind.INVALID_PARAMS,
-      "state_updates must be an array or boolean"
+      "state_updates must be an array or boolean",
     );
   }
 };
@@ -3271,7 +3396,7 @@ function disableTabFreeze(keep_visible?: boolean) {
   const base64VideoSrc =
     "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAtptZGF0AAACrQYF//+p3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE1OSByMjk5MSAxNzcxYjU1IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxOSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAANZYiEAJ/+xkPApcjsHQAAAAxBmiFsSf/xWlGfYYAAAAMIbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjJ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAGqbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABVW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAARVzdGJsAAAAlXN0c2QAAAAAAAAAAQAAAIVhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBZAAK/+EAFmdkAAqs2V6EAAADAAQAAAMACDxIllgBAAZo6+PLIsAAAAAYc3R0cwAAAAAAAAABAAAAAgAAQAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAAsIAAAAQAAAAFHN0Y28AAAAAAAAAAQAAADAAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjU4LjI5LjEwMA==";
   let video: HTMLVideoElement | null = document.getElementById(
-    NO_FREEZE_ID
+    NO_FREEZE_ID,
   ) as HTMLVideoElement;
   if (!video) {
     video = document.createElement("video");
@@ -3322,5 +3447,5 @@ export {
   EvaConfig,
   EvaEngineConfig,
   Watcher,
-  disableTabFreeze
+  disableTabFreeze,
 };
